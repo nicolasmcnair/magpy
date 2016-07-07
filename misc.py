@@ -116,7 +116,7 @@ class connectionRobot(multiprocessing.Process):
         N.B. This should be called via start() from the parent Python process.
         """
         #This sends an "enable remote control" command to the serial port controller every 500ms
-        while not self.stopped:
+        while not self._stopped:
             self.serialWriteQueue.put(('Q@n',None,3))
             self.nextPokeTime = clock() + 0.5
             while clock() < self.nextPokeTime:
