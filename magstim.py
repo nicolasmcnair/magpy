@@ -57,7 +57,7 @@ class Magstim:
         This stops maintaining contact with the Magstim and turns the serial port controller off.
         """        
         if self._connected:
-            self._robot.stop()
+            self._robotQueue.put(None)
             self._sendQueue.put((None,None,None))
             self.remoteControl(enable=False)
             self._connected = False
