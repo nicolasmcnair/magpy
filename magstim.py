@@ -47,7 +47,6 @@ class Magstim:
                 self._robot.start()
             else:
                 self._sendQueue.put((None,None,None))
-                self._robotQueue.put(None)
                 ###raise error
             
     
