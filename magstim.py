@@ -45,6 +45,7 @@ class Magstim:
             if self.remoteControl(enable=True,receipt=True)[0]:
                 self._connected = True
                 self._robot.start()
+                sleep(3) #Need to allow time for additional process to spin-up
             else:
                 self._sendQueue.put((None,None,None))
                 ###raise error
