@@ -13,7 +13,7 @@ from sys import version_info
 
 class serialPortController(multiprocessing.Process):
     """
-    The is class creates a Python process which has direct control of the serial port. Commands for relaying via the serial port are received from separate Python processes via Queues.
+    The class creates a Python process which has direct control of the serial port. Commands for relaying via the serial port are received from separate Python processes via Queues.
     
     N.B. To start the process you must call start() from the parent Python process.
     
@@ -94,7 +94,7 @@ class serialPortController(multiprocessing.Process):
 
 class connectionRobot(multiprocessing.Process):
     """
-    The is class creates a Python process which sends an 'enable remote control' command to the Magstim via the serialPortController process every 500ms.
+    The class creates a Python process which sends an 'enable remote control' command to the Magstim via the serialPortController process every 500ms.
     
     N.B. To start the process you must call start() from the parent Python process.
     
