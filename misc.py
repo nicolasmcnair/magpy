@@ -8,8 +8,16 @@ Miscellaneous magpy functions
 """
 import multiprocessing
 import serial
-from time import clock
-from sys import version_info
+from sys import version_info, platform
+#switch timer based on platform
+if platform == 'win32':
+    # On Windows, use time.clock
+    from time import clock
+    default_timer = clock
+else:
+    # On other platforms use time.time
+    from time import time    
+    default_timer = time
 
 class serialPortController(multiprocessing.Process):
     """
@@ -118,8 +126,8 @@ class connectionRobot(multiprocessing.Process):
         #This sends an "enable remote control" command to the serial port controller every 500ms
         while not self._stopped:
             self.serialWriteQueue.put(('Q@n',None,3))
-            self.nextPokeTime = clock() + 0.5
-            while clock() < self.nextPokeTime:
+            self.nextPokeTime = default_timer() + 0.5
+            while default_timer() < self.nextPokeTime:
                 #Checks to see if there has been an update send from the parent magstim
                 if not self.updateTimeQueue.empty():
                     #If the message is None this signals the process to stop
@@ -128,7 +136,7 @@ class connectionRobot(multiprocessing.Process):
                         break
                     #Any other message is signals a command has been sent to the serial port controller, so bump the next poke time by 500ms
                     else:
-                        self.nextPokeTime = clock() + 0.5
+                        self.nextPokeTime = default_timer() + 0.5
         #If we get here, it's time to shutdown the robot
         return
         
