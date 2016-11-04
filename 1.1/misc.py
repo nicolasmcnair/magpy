@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jan 07 14:08:10 2016
+Created on Fri Nov 04 14:08:10 2016
 
 Miscellaneous magpy functions
 
