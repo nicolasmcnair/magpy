@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Nov 04 15:26:27 2016
+
+Code relating to creating virtual Magstim stimulators
+
+@author: Nicolas McNair
+"""
+
 from __future__ import division
 from multiprocessing import Pipe
 from threading import Thread
