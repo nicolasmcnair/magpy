@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jan 07 15:26:27 2016
+Created on Fri Nov 04 15:26:27 2016
 
 Code relating to controlling 200^2, BiStim^2, and Rapid^2 Magstim TMS units
 
