@@ -11,7 +11,7 @@ from misc import calcCRC, parseMagstimResponse, connectionRobot, serialPortContr
 from time import sleep
 import multiprocessing
 
-class Magstim:
+class Magstim(object):
     """
     The base Magstim class. This is used for controlling 200^2 Magstim units, and acts as a parent class for the BiStim^2 and Rapid^2 sub-classes.
     
