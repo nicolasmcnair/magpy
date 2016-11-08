@@ -11,7 +11,7 @@ from misc import calcCRC, parseMagstimResponse, connectionRobot
 from time import sleep
 from multiprocessing import Queue
 
-class Magstim:
+class Magstim(object):
     """
     The base Magstim class. This is used for controlling 200^2 Magstim units, and acts as a parent class for the BiStim^2 and Rapid^2 sub-classes.
     
