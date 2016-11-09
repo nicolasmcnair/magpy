@@ -426,10 +426,7 @@ class Rapid(Magstim):
     
     To enable rTMS mode, you must first change the Duration parameter to 1 s (i.e., by calling: setDuration(10)). To disable rTMS mode, change the Duration parameter to 0 s (i.e., setDuration(0)).
     
-    N.B. In rTMS mode the maximum frequency allowed is dependent on the power level. Also, there is a dependent relationship between the Duration, NPulses, and Frequency parameter settings.
-         Therefore it is recommended either to seek confirmation of any change in settings or to evaluate allowable changes beforehand.
-         
-         In addition, after each rTMS train there is an enforced 500 ms delay before any subsequent train can be initiated or before any rTMS parameter settings can be altered.
+    N.B. After each rTMS train there is an enforced 500 ms delay before any subsequent train can be initiated or before any rTMS parameter settings can be altered.
     """
     def ignoreCoilSafetySwitch(self,receipt=False):
         """ 
@@ -472,9 +469,7 @@ class Rapid(Magstim):
         """ 
         Set frequency of rTMS pulse train.
         
-        N.B. Changing the Frequency will automatically update the NPulses parameter based on the current Duration parameter setting.
-        
-             The maximum frequency allowed depends on the current Power level
+        N.B. The maximum frequency allowed depends on the current Power level
         
         Args:
         newFrequency (int): new frequency of pulse train in tenths of a hertz (i.e., per 10 seconds) (1-1000) 
@@ -493,9 +488,7 @@ class Rapid(Magstim):
     def setNPulses(self,newNPulses,receipt=False):
         """ 
         Set number of pulses in rTMS pulse train.
-        
-        N.B. Changing the NPulses parameter will automatically update the Duration parameter (this cannot exceed 10 s) based on the current Frequency parameter setting.
-        
+          
         Args:
         newNPulses (int): new number of pulses (1-1000)
         receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
@@ -513,8 +506,6 @@ class Rapid(Magstim):
     def setDuration(self,newDuration,receipt=False):
         """ 
         Set duration of rTMS pulse train.
-        
-        N.B. Changing the Duration parameter will automatically update the NPulses parameter based on the current Frequency parameter setting.
         
         Args:
         newDuration (int): new duration of pulse train in tenths of a second (1-999)
@@ -546,8 +537,6 @@ class Rapid(Magstim):
         Set power level for the Rapid.
         
         N.B. Allow 100 ms per unit drop in power, or 10 ms per unit increase in power.
-        
-             Changing the power level can result in automatic updating of the Frequency parameter (if in rTMS mode)
         
         Args:
         newPower (int): new power level (0-100; or 0-110 if enhanced-power mode is enabled)
