@@ -86,13 +86,13 @@ class serialPortController(multiprocessing.Process):
                     self.port.write(message)
                 except serial.SerialTimeoutException:
                     readBytes = 0;
-                    self.serialReadQueue.put([False,'Timed out while sending command.'])
+                    self.serialReadQueue.put([1,'Timed out while sending command.'])
                 #If we want a reply, read the response from the Magstim and place it in the serialReadQueue
                 if reply:
                     try:
-                        self.serialReadQueue.put([True,self.port.read(readBytes)])
+                        self.serialReadQueue.put([0,self.port.read(readBytes)])
                     except serial.SerialTimeoutException:
-                        self.serialReadQueue.put([False,'Timed out while waiting for response.'])
+                        self.serialReadQueue.put([2,'Timed out while waiting for response.'])
                 #Otherwise just get rid of the reply from the input buffer
                 else:
                     self.port.read(readBytes)
