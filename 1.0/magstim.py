@@ -306,7 +306,7 @@ class BiStim(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the BiStim encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error strin
         If receipt argument is False:
             None
@@ -319,7 +319,7 @@ class BiStim(Magstim):
         
         Returns:
        :tuple:(error,message):
-            error (bool): whether the Magstim encountered an error
+            error (bool): whether the BiStim encountered an error
             message (dict,str): if error is 0 (False) returns a dict containing BiStim instrument status ['instr'] and parameter setting ['bistim_param'] dicts, otherwise returns an error string   
         """
         return self._processCommand('J@','bistim_param',12)
@@ -340,7 +340,7 @@ class BiStim(Magstim):
         Returns:
         If receipt argument is True:
            :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the BiStim encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
@@ -378,7 +378,7 @@ class BiStim(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the BiStim encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
@@ -411,7 +411,7 @@ class BiStim(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the BiStim encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
@@ -441,7 +441,7 @@ class Rapid(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the Rapid encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error strin
         If receipt argument is False:
             None
@@ -461,7 +461,7 @@ class Rapid(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the Rapid encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
@@ -483,7 +483,7 @@ class Rapid(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the Rapid encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
@@ -503,7 +503,7 @@ class Rapid(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the Rapid encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
@@ -523,7 +523,7 @@ class Rapid(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the Rapid encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
@@ -536,7 +536,7 @@ class Rapid(Magstim):
         
         Returns:
         :tuple:(error,message):
-            error (bool): whether the Magstim encountered an error
+            error (bool): whether the Rapid encountered an error
             message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'], rMTS setting ['rapid'], and parameter setting ['rapid_param'] dicts, otherwise returns an error string
         """
         return self._processCommand('\\@','rapid_param',21)
@@ -557,7 +557,7 @@ class Rapid(Magstim):
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
-                error (bool): whether the Magstim encountered an error
+                error (bool): whether the Rapid encountered an error
                 message (dict,str): if error is 0 (False) returns a dict containing a Rapid instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
