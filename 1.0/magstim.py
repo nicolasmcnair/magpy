@@ -42,7 +42,7 @@ class Magstim(object):
         """
         if not self._connected:
             self._connection.start()
-            if self.remoteControl(enable=True,receipt=True)[0]:
+            if not self.remoteControl(enable=True,receipt=True)[0]:
                 self._connected = True
                 self._robot.start()
             else:
@@ -68,14 +68,14 @@ class Magstim(object):
         
         Args:
         commandString (str): command and data characters making up the command string (N.B. do not include CRC character)
-        reciptType (bool): whether to return confirmation of the command and the automated response from the Magstim unit
+        reciptType (bool): whether to return occurence of an error and the automated response from the Magstim unit
         readBytes (int): number of bytes in the response
         
         Returns:
         If receiptType argument is not None:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Magstim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing one or more Magstim parameter dicts, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing one or more Magstim parameter dicts, otherwise returns an error string
         If receiptType argument is None:
             None
         """
@@ -89,28 +89,28 @@ class Magstim(object):
                     
             #If expecting a response, start inspecting the receive queue back from the serial port controller
             if receiptType is not None:
-                confirm, reply = self._receiveQueue.get()
-                #If confirmation is false, that means we either couldn't send the command or didn't get anything back from the Magstim
-                if not confirm:
-                    return (confirm,reply)
+                error, reply = self._receiveQueue.get()
+                #If error is true, that means we either couldn't send the command or didn't get anything back from the Magstim
+                if error:
+                    return (error,reply)
                 #If we did get something back from the Magstim, parse the message and the return it
                 else:
                     if reply[0] == '?':
-                        return (False,'Invalid command sent.')
-                    elif reply[0] <> commandString[0]:
-                        return (False,'Unexpected confirmation received.')
+                        return (3,'Invalid command sent.')
                     elif reply[1] == '?':
-                        return (False,'Invalid data provided.')
+                        return (4,'Invalid data provided.')
                     elif reply[1] == 'S':
-                        return (False,'Command conflicts with current system configuration.')
+                        return (5,'Command conflicts with current system configuration.')
+                    elif reply[0] <> commandString[0]:
+                        return (6,'Unexpected confirmation received.')
                     elif calcCRC(reply[0:-1]) <> reply[-1]:
-                        return (False,'Message contents and CRC value do not match.')
+                        return (7,'Message contents and CRC value do not match.')
                     else:
-                        return (True,parseMagstimResponse(list(reply[1:-1]),receiptType))
+                        return (0,parseMagstimResponse(list(reply[1:-1]),receiptType))
             else:
                 return None
         else:
-            return (False,'You have not established control of the Magstim unit.')
+            return (8,'You have not established control of the Magstim unit.')
     
     def remoteControl(self,enable,receipt=False):
         """ 
@@ -118,13 +118,13 @@ class Magstim(object):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) control
-        receipt (bool): whether to request confirmation of the command and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Magstim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -135,9 +135,9 @@ class Magstim(object):
         Request current parameter settings from the Magstim.
         
         Returns:
-        :tuple:(confirm,message):
-            confirm (bool): whether the Magstim confirmed command execution
-            message (dict,str): if confirm is True returns a dict containing Magstim instrument status ['instr'] and parameter setting ['magstim_param'] dicts, otherwise returns an error string         
+        :tuple:(error,message):
+            error (bool): whether the Magstim encountered an error
+            message (dict,str): if error is 0 (False) returns a dict containing Magstim instrument status ['instr'] and parameter setting ['magstim_param'] dicts, otherwise returns an error string         
         """
         return self._processCommand('J@','magstim_param',12)
     
@@ -149,31 +149,31 @@ class Magstim(object):
         
         Args:
         newPower (int): new power level (0-100)
-        receipt (bool): whether to request confirmation of the command and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
         delay (bool): enforce delay to allow Magstim time to change Power (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Magstim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
         if delay:
-            confirm, priorPower = self.getParameters()
+            error, priorPower = self.getParameters()
             priorPower = priorPower['magstim_param']['power']
         
         magstimReply = self._processCommand('@' + str(newPower).zfill(3),'instr' if receipt else None,3)
         
         if delay:
-            if confirm:
+            if not error:
                 if newPower > priorPower:
                     sleep((newPower - priorPower) * 0.01)
                 else:
                     sleep((priorPower - newPower) * 0.1)
             else:
-                return (False,'Could not obtain prior power settings in order to enforce delay.')
+                return (9,'Could not obtain prior power settings.')
             
         return magstimReply
     
@@ -186,9 +186,9 @@ class Magstim(object):
              Magstim units will automatically disarm (and cannot be armed) if the coil temperature exceeds 40 degrees celsius.
         
         Returns:
-        :tuple:(confirm,message):
-            confirm (bool): whether the Magstim confirmed command execution
-            message (dict,str): if confirm is True returns a dict containing Magstim instrument status ['instr'] and coil temperature ['magstim_temp'] dicts, otherwise returns an error string
+        :tuple:(error,message):
+            error (bool): whether the Magstim encountered an error
+            message (dict,str): if error is 0 (False) returns a dict containing Magstim instrument status ['instr'] and coil temperature ['magstim_temp'] dicts, otherwise returns an error string
         """
         return self._processCommand('F@','magstim_temp',9)        
     
@@ -211,28 +211,28 @@ class Magstim(object):
         """ 
         Arm the stimulator.
         
-        N.B. You must allow at least 1 s for the stimulator to arm.
+        N.B. You must allow around 1 s for the stimulator to arm.
         
-             If you send an arm() command when the Magstim is already armed, you will receive an non-fatal error reply from the Magstim that the command conflicts with the current settings.
+             If you send an arm() command when the Magstim is already armed or ready, you will receive an non-fatal error reply from the Magstim that the command conflicts with the current settings.
              
              If the unit does not fire for more than 1 min while armed, it will disarm
         
         Args:
-        receipt (bool): whether to request confirmation of the command and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
         delay (bool): enforce delay to allow Magstim time to arm (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Magstim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string  
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string  
         If receipt argument is False:
             None
         """
         magstimReply = self._processCommand('EB','instr' if receipt else None,3)
         
         if delay:
-            sleep(1)
+            sleep(1.5)
         
         return magstimReply
     
@@ -241,13 +241,13 @@ class Magstim(object):
         Disarm the stimulator.
         
         Args:
-        receipt (bool): whether to request confirmation of the command and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Magstim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string   
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string   
         If receipt argument is False:
             None
         """
@@ -260,13 +260,13 @@ class Magstim(object):
         N.B. Will only succeed if previously armed.
         
         Args:
-        receipt (bool): whether to request confirmation of the command and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Magstim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a Magstim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -301,13 +301,13 @@ class BiStim(Magstim):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) high-resolution mode
-        receipt (bool): whether to request confirmation of the command and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the BiStim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error strin
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error strin
         If receipt argument is False:
             None
         """
@@ -318,9 +318,9 @@ class BiStim(Magstim):
         Request current coil temperature from the BiStim.
         
         Returns:
-        :tuple:(confirm,message):
-            confirm (bool): whether the BiStim confirmed command execution
-            message (dict,str): if confirm is True returns a dict containing BiStim instrument status ['instr'] and parameter setting ['bistim_param'] dicts, otherwise returns an error string   
+       :tuple:(error,message):
+            error (bool): whether the Magstim encountered an error
+            message (dict,str): if error is 0 (False) returns a dict containing BiStim instrument status ['instr'] and parameter setting ['bistim_param'] dicts, otherwise returns an error string   
         """
         return self._processCommand('J@','bistim_param',12)
     
@@ -334,31 +334,31 @@ class BiStim(Magstim):
         
         Args:
         newPower (int): new power level (0-100)
-        receipt (bool): whether to request confirmation of the command and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
         delay (bool): enforce delay to allow BiStim time to change Power (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the BiStim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
+           :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
         if delay:
-            confirm, priorPower = self.getParameters()
+            error, priorPower = self.getParameters()
             priorPower = priorPower['bistim_param']['power_a']
         
         magstimReply = self._processCommand('@' + str(newPower).zfill(3),'instr' if receipt else None,3)
         
         if delay:
-            if confirm:
+            if not error:
                 if newPower > priorPower:
                     sleep((newPower - priorPower) * 0.01)
                 else:
                     sleep((priorPower - newPower) * 0.1)
             else:
-                return (False,'Could not obtain prior power settings in order to enforce delay.')
+                return (9,'Could not obtain prior power settings in order to enforce delay.')
             
         return magstimReply
     
@@ -372,31 +372,31 @@ class BiStim(Magstim):
         
         Args:
         newPower (int): new power level (0-100)
-        receipt (bool): whether to request confirmation of the command and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
         delay (bool): enforce delay to allow BiStim time to change Power (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the BiStim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
         if delay:
-            confirm, priorPower = self.getParameters()
+            error, priorPower = self.getParameters()
             priorPower = priorPower['bistim_param']['power_b']
         
         magstimReply = self._processCommand('A' + str(newPower).zfill(3),'instr' if receipt else None,3)
         
         if delay:
-            if confirm:
+            if not error:
                 if newPower > priorPower:
                     sleep((newPower - priorPower) * 0.01)
                 else:
                     sleep((priorPower - newPower) * 0.1)
             else:
-                return (False,'Could not obtain prior power settings in order to enforce delay.')
+                return (9,'Could not obtain prior power settings in order to enforce delay.')
             
         return magstimReply
     
@@ -406,13 +406,13 @@ class BiStim(Magstim):
         
         Args:
         newInterval (int): new interpulse interval in milliseconds (if in low resolution mode) or tenths of a millisecond (if in high resolution mode) (0-999)
-        receipt (bool): whether to request confirmation of the command and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the BiStim confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a BiStim instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -436,13 +436,13 @@ class Rapid(Magstim):
         This allows the stimulator to ignore the state of coil safety interlock switch.
         
         Args:
-        receipt (bool): whether to request confirmation of the command and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Rapid confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error strin
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error strin
         If receipt argument is False:
             None
         """
@@ -456,13 +456,13 @@ class Rapid(Magstim):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) enhanced-power mode
-        receipt (bool): whether to request confirmation of the command and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Rapid confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -478,13 +478,13 @@ class Rapid(Magstim):
         
         Args:
         newFrequency (int): new frequency of pulse train in tenths of a hertz (i.e., per 10 seconds) (1-1000) 
-        receipt (bool): whether to request confirmation of the command and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Rapid confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -498,13 +498,13 @@ class Rapid(Magstim):
         
         Args:
         newNPulses (int): new number of pulses (1-1000)
-        receipt (bool): whether to request confirmation of the command and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Rapid confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -518,13 +518,13 @@ class Rapid(Magstim):
         
         Args:
         newDuration (int): new duration of pulse train in tenths of a second (1-999)
-        receipt (bool): whether to request confirmation of the command and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Rapid confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
         If receipt argument is False:
             None
         """
@@ -535,9 +535,9 @@ class Rapid(Magstim):
         Request current coil temperature from the Rapid.
         
         Returns:
-        :tuple:(confirm,message):
-            confirm (bool): whether the Rapid confirmed command execution
-            message (dict,str): if confirm is True returns a dict containing Rapid instrument status ['instr'], rMTS setting ['rapid'], and parameter setting ['rapid_param'] dicts, otherwise returns an error string
+        :tuple:(error,message):
+            error (bool): whether the Magstim encountered an error
+            message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'], rMTS setting ['rapid'], and parameter setting ['rapid_param'] dicts, otherwise returns an error string
         """
         return self._processCommand('\\@','rapid_param',21)
     
@@ -551,30 +551,30 @@ class Rapid(Magstim):
         
         Args:
         newPower (int): new power level (0-100; or 0-110 if enhanced-power mode is enabled)
-        receipt (bool): whether to request confirmation of the command and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         delay (bool): enforce delay to allow Rapid time to change Power (defaults to False)
         
         Returns:
         If receipt argument is True:
-            :tuple:(confirm,message):
-                confirm (bool): whether the Rapid confirmed command execution
-                message (dict,str): if confirm is True returns a dict containing a Rapid instrument status ['instr'] dict, otherwise returns an error string
+            :tuple:(error,message):
+                error (bool): whether the Magstim encountered an error
+                message (dict,str): if error is 0 (False) returns a dict containing a Rapid instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
         if delay:
-            confirm, priorPower = self.getParameters()
+            error, priorPower = self.getParameters()
             priorPower = priorPower['rapid_param']['power']
         
         magstimReply = self._processCommand('@' + str(newPower).zfill(3),'instr' if receipt else None,3)
         
         if delay:
-            if confirm:
+            if not error:
                 if newPower > priorPower:
                     sleep((newPower - priorPower) * 0.01)
                 else:
                     sleep((priorPower - newPower) * 0.1)
             else:
-                return (False,'Could not obtain prior power settings in order to enforce delay.')
+                return (9,'Could not obtain prior power settings in order to enforce delay.')
         
         return magstimReply
