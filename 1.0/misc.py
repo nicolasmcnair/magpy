@@ -86,6 +86,7 @@ class serialPortController(multiprocessing.Process):
                     self.port.write(message)
                 except serial.SerialTimeoutException:
                     readBytes = 0;
+                    reply = False;
                     self.serialReadQueue.put([1,'Timed out while sending command.'])
                 #If we want a reply, read the response from the Magstim and place it in the serialReadQueue
                 if reply:
