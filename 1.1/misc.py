@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 04 14:08:10 2016
+Created on Thu Jan 07 2016
+Last Modified on Wed Nov 09 2016
 
-Miscellaneous magpy functions
+Miscellaneous MagPy functions
 
 @author: Nicolas McNair
 """
 import serial
 from multiprocessing import Process
 from sys import version_info, platform
+
 #switch timer based on platform
 if platform == 'win32':
     # On Windows, use time.clock
@@ -46,11 +48,11 @@ class serialPortController(Process):
         
         #N.B. most of these settings are actually the default in PySerial, but just being careful.
         self._port = serial.Serial(port=self._address,
-                                    baudrate=9600,
-                                    bytesize=serial.EIGHTBITS,
-                                    stopbits=serial.STOPBITS_ONE,
-                                    parity=serial.PARITY_NONE,
-                                    xonxoff=False)
+                                   baudrate=9600,
+                                   bytesize=serial.EIGHTBITS,
+                                   stopbits=serial.STOPBITS_ONE,
+                                   parity=serial.PARITY_NONE,
+                                   xonxoff=False)
             
         #Make sure the RTS pin is set to off
         self._port.setRTS(False)
@@ -82,20 +84,25 @@ class serialPortController(Process):
                 #If there's any rubbish in the input buffer clear it out
                 if self._port.anyWaiting():
                     self._port.portFlush()
-                #Try writing to the port
                 try:
+                    #Try writing to the port
                     self._port.write(message)
-                except serial.SerialTimeoutException:
-                    self._serialReadQueue.put([False,'Timed out while sending command.'])
-                #If we want a reply, read the response from the Magstim and place it in the serialReadQueue
-                if reply:
+                    #Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
                     try:
-                        self._serialReadQueue.put([True,self._port.read(readBytes)])
-                    except serial.SerialTimeoutException:
-                        self._serialReadQueue.put([False,'Timed out while waiting for response.'])
-                #Otherwise just get rid of the reply from the input buffer
-                else:
-                    self._port.read(readBytes)
+                        #If the first returned byte a '?', then the instruction wasn't understood and this will be the only returned byte
+                        message = self._port.read(1)
+                        if message != '?':
+                            #If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S')...
+                            message += self._port.read(1)
+                            #...in which case just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
+                            message += self._port.read(readBytes - 2) if message[-1] not in {'S','?'} else self._port.read(1)
+                        #Return the reply if we want it
+                        if reply:
+                            self._serialReadQueue.put([0,message])
+                    except serial.SerialException:
+                        self._serialReadQueue.put([2,'Could not read the magstim response.'])
+                except serial.SerialException:
+                    self._serialReadQueue.put([1,'Could not send the command.'])
         #If we get here, it's time to shutdown the serial port controller
         self._port.close()
         return
@@ -120,18 +127,19 @@ class connectionRobot(Process):
         
     def run(self):
         """
-        Continuously send commands to the serialPortController process every 500ms, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed.
+        Continuously send commands to the serialPortController process every 500ms, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed, paused, or stopped.
         
         N.B. This should be called via start() from the parent Python process.
         """
         
-        #This sends an "enable remote control" command to the serial port controller every 500ms
+        #This sends an "enable remote control" command to the serial port controller every 500ms; only runs once the stimulator is armed
         while True:
             #If the robot is currently paused, wait until we get a None (stop) or a 1 (start/resume) in the queue
             while self._paused:
                 message = self._updateRobotQueue.get()
                 if message is None:
                     self._stopped = True
+                    self._paused = False
                 elif message == 1:
                     self._paused = False
             #Check if we're stopping the robot
@@ -155,7 +163,7 @@ class connectionRobot(Process):
                     #Any other message is signals a command has been sent to the serial port controller, so bump the next poke time by 500ms
                     else:
                         self._nextPokeTime = defaultTimer() + 0.5
-            #If we made it to the the next poll time without breaking, send a poll to the port controller
+            #If we made it all the way to the next poll time, send a poll to the port controller
             else:
                 self._serialWriteQueue.put(('Q@n',None,3))
         #If we get here, it's time to shutdown the robot

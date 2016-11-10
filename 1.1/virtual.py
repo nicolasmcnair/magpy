@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov 04 15:26:27 2016
-
-Code relating to creating virtual Magstim stimulators
-
-@author: Nicolas McNair
-"""
-
 from __future__ import division
 from multiprocessing import Pipe
 from threading import Thread
@@ -15,7 +6,6 @@ from misc import calcCRC
 from collections import OrderedDict
 from math import ceil, floor
 from threading import Timer
-from Queue import Empty
 
 #switch timer based on platform
 if platform == 'win32':
@@ -148,9 +138,6 @@ class virtualMagstim(Thread):
 
     def run(self):
         while True:
-            # Wait until there's something to read
-            while not self._magstimConn.poll():
-                pass
             # Check virtual port connection for messages
             message = self._magstimConn.recv()
             # Check if message is signal to shutdown
@@ -221,7 +208,7 @@ class virtualBiStim(virtualMagstim):
             return parentParsedMessage
 
 class virtualRapid(virtualMagstim):
-    def __init__(self,serialConnection,superRapid):
+    def __init__(self,serialConnection,superRapid=False):
         super(virtualRapid,self).__init__(serialConnection)
 
         self._super = superRapid
@@ -231,25 +218,51 @@ class virtualRapid(virtualMagstim):
                                          ('coilReady'            ,1),
                                          ('hvpsuConnected'       ,1),
                                          ('singlePulseMode'      ,1),
-                                         ('wait'                 ,1),
+                                         ('wait'                 ,0),
                                          ('train'                ,0),
-                                         ('enhancedPowerMode'    ,0)]) # CHECK THESE
+                                         ('enhancedPowerMode'    ,0)])
 
         self._params = {'power'     : 30,
-                        'frequency' : 100,
-                        'nPulses'   : 20,
-                        'duration'  : 20,
-                        'wait'      : 10}
+                        'frequency' : 0,
+                        'nPulses'   : 1,
+                        'duration'  : 0,
+                        'wait'      : 1}
 
     def _okToFire(self):
-        return default_timer() > (self._lastFired + 1)
+        return default_timer() > (self._lastFired + 1) if self._rapidStatus['singlePulseMode'] else default_timer() > (self._lastFired + 0.5)
 
     def _getParams(self):
         return str(self._params['power']).zfill(3) + str(self._params['frequency']).zfill(4) + str(self._params['nPulses']).zfill(4) + str(self._params['duration']).zfill(3) + str(self._params['wait']).zfill(3)
 
+    def _getMaxFreq(self):
+        if self._super:
+            maxFrequency = 100
+            if 30 < self._params['power'] < 50:
+                maxFrequency = ceil(100 - (0.25 * (self._params['power'] - 30)))
+            elif power <= 100:
+                maxFrequency = 10 * ceil(50 - (0.5 * (self._params['power'] - 50)))
+            else:
+                maxFrequency = 250
+        #...but gets pretty complex for a Standard Rapid for some reason
+        else:
+            maxFrequency = 50
+            if 30 < self._params['power'] < 38:
+                maxFrequency = floor(46 - (1.2 * (self._params['power'] - 31)))
+            elif self._params['power'] < 43:
+                maxFrequency = floor(37 - ((4/3) * (self._params['power'] - 40)))
+            elif self._params['power'] < 47:
+                maxFrequency = 330
+            elif self._params['power'] < 50:
+                maxFrequency = ceil(30 - (self._params['power'] - 50))
+            elif self._params['power'] < 70:
+                maxFrequency = int(30 - (0.5 * (self._params['power'] - 50)))
+            elif self._params['power'] <= 100:
+                maxFrequency = int(20 - ((1/6) * (self._params['power'] - 70)))
+        return maxFrequency
+
     def _processMessage(self,message):
         # Catch Magstim and BiStim parameter command here, before passing the message up to parent
-        if message[0] in {'R','@'} or message[:2] == 'EH':
+        if message[0] in {'R','@'}:
             parentParsedMessage = '?'
         # Otherwise, try and process message using parent function
         else:
@@ -259,50 +272,24 @@ class virtualRapid(virtualMagstim):
             if message[0] in {'\\','@','E','b','^','_','B','D','['}:
                 # Get the instrument status prior to effecting changes (this is Magstim behaviour)
                 messageData = self._parseStatus(self._instrStatus)
-                if message[0] == 'E':
-                    if self._instrStatus['ready']:
-                        self._instrStatus['armed'] = 1
-                        self._instrStatus['ready'] = 0
-                        self._lastFired = default_timer()
-                    else:
-                        messageData = 'S'
-                elif message[0] == '\\':
+                if message[0] == '\\':
                     messageData += self._parseStatus(self._rapidStatus)
                     messageData += self._getParams()
                 elif message[0] == '@':
                     newParameter = int(message[1:-1])
                     if self._instrStatus['remoteStatus'] and ((0<= newParameter <= 100) or (self._instrStatus['enhancedPowerMode'] and (101<= newParameter <= 110))):
                         self._params['power'] = newParameter
-                        #Need to adjust frequency based on power setting; this is relatively easy for a Super Rapid
-                        if self._super:
-                            if 30 < self._params['power'] < 50:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * ceil(100 - (2.5 * (self._params['power'] - 30))))
-                            elif self._params['power'] <= 100:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * ceil(50 - (0.5 * (self._params['power'] - 50))))
-                            else:
-                                self._params['frequency'] = 250
-                        #...but gets pretty complex for a Standard Rapid for some reason
-                        else:
-                            if 30 < self._params['power'] < 38:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * floor(46 - (1.2 * (self._params['power'] - 31))))
-                            elif self._params['power'] < 43:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * floor(37 - ((4/3) * (self._params['power'] - 40))))
-                            elif self._params['power'] < 47:
-                                self._params['frequency'] = min(self._params['frequency'], 330)
-                            elif self._params['power'] < 50:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * ceil(30 - (self._params['power'] - 50)))
-                            elif self._params['power'] < 70:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * int(30 - (0.5 * (self._params['power'] - 50))))
-                            elif self._params['power'] <= 100:
-                                self._params['frequency'] = min(self._params['frequency'], 10 * int(20 - ((1/6) * (self._params['power'] - 70))))
-                        self._params['nPulses'] = int((self._params['frequency'] / 10 ) * (self._params['duration'] / 10))  
+                        # If in rTMS mode, adjust settings based on new power setting?
+                        #if not self._rapidStatus['singlePulseMode']:
+                        #    self._params['frequency'] = min(self._params['frequency'],self._getMaxFreq())
+                        #    self._params['nPulses'] = int((self._params['frequency'] / 10 ) * (self._params['duration'] / 10))  
                     else:
                         messageData = 'S'
                 elif message[0] == 'b':
                     pass # Ignoring coil safety switch, so just pass
                 elif message[0] == '^':
                         self._params['enhancedPowerMode'] = 1
-                        messageData += self._getRapidStatus
+                        messageData += self._getRapidStatus # DOES THIS UPDATE BEFORE OR AFTER?
                 elif message[0] == '_':
                         self._params['enhancedPowerMode'] = 0
                         self._params['power'] = min(self._params['power'], 100)
@@ -310,15 +297,14 @@ class virtualRapid(virtualMagstim):
                 elif message[0] == '[' and self._params['singlePulseMode']:
                     if int(message[1:-1]) == 1:
                         self._params['singlePulseMode'] = 0
-                        messageData += self._getRapidStatus
+                        self._params['duration'] = 1
                     else:
                         messageData = 'S'
                 elif message[0] in {'B','D','['} and not self._params['singlePulseMode']:
                     if message[0] == 'B':
                         newParameter = int(message[1:-1])
-                        if (self._super and (1<= newParameter <= 1000)) or (1<= newParameter <= 500):
+                        if newParameter < self._getMaxFreq():
                             self._params['frequency'] = newParameter
-                            self._params['nPulses'] = int((self._params['frequency'] / 10 ) * (self._params['duration'] / 10))
                             messageData += self._getRapidStatus 
                         else:
                            messageData = 'S'
@@ -326,7 +312,6 @@ class virtualRapid(virtualMagstim):
                         newParameter = int(message[1:-1])
                         if 1<= newParameter <= 1000:
                             self._params['nPulses'] = newParameter
-                            self._params['duration'] = 10 * (self._params['nPulses'] / (self._params['frequency'] / 10))
                             messageData += self._getRapidStatus
                         else:
                             messageData = 'S'
@@ -335,9 +320,9 @@ class virtualRapid(virtualMagstim):
                         messageData += self._getRapidStatus
                         if 1<= newParameter <= 100:
                             self._params['duration'] = newParameter
-                            self._params['nPulses'] = int((self._params['frequency'] / 10 ) * (self._params['duration'] / 10))
                         elif newParameter == 0:
                             self._params['singlePulseMode'] = 1
+                            messageData += self._getRapidStatus
                         else:
                             messageData = 'S'
             else:
@@ -363,7 +348,7 @@ class virtualPortController(Thread):
     serialWriteQueue (multiprocessing.Queue): a Queue for receiving commands to be written to the virtual Magstim unit via the serial port
     serialReadQueue (multiprocessing.Queue): a Queue for returning automated replies from the virtual Magstim unit when requested
     """    
-    def __init__(self,magstimType,serialWriteQueue,serialReadQueue):
+    def __init__(self,magstimType,serialWriteQueue,serialReadQueue,superRapid=False):
         Thread.__init__(self)
         self._serialWriteQueue = serialWriteQueue
         self._serialReadQueue = serialReadQueue
@@ -373,12 +358,11 @@ class virtualPortController(Thread):
         elif magstimType == 'BiStim':
             self._magstim = virtualBiStim(self._magstimConn)
         elif magstimType == 'Rapid':
-            self._magstim = virtualRapid(self._magstimConn)
+            self._magstim = virtualRapid(self._magstimConn,superRapid)
         else:
             pass
             # THROW ERROR
         self._magstim.daemon = True
-        self.lock = threading.Lock()
 
     def run(self):
         """
@@ -393,32 +377,28 @@ class virtualPortController(Thread):
                 
         #This continually monitors the serialWriteQueue for write requests
         while True:
-            if not self.serialWriteQueue.empty():
-                try:
-                    message,reply,readBytes = self._serialWriteQueue.get()
-                    #If the first part of the message is None this signals the thread to close the port and stop
-                    if message is None:
-                        self._portConn.send(None)
-                        break
-                    #If the first part of the message is a 1 or -1 this signals the thread to do something with the RTS pin, which we don't have - so pass
-                    elif message in {1,-1}:
-                        pass
-                    #Otherwise, the message is a command string
+            message,reply,readBytes = self._serialWriteQueue.get()
+            #If the first part of the message is None this signals the thread to close the port and stop
+            if message is None:
+                self._portConn.send(None)
+                break
+            #If the first part of the message is a 1 or -1 this signals the thread to do something with the RTS pin, which we don't have - so pass
+            elif message in {1,-1}:
+                pass
+            #Otherwise, the message is a command string
+            else:
+                #Try writing to the virtual port
+                self._portConn.send(message)
+                #Get reply
+                if self._portConn.poll(0.3):
+                    #If we want a reply, read the response from the Magstim and place it in the serialReadQueue
+                    if reply:
+                        self._serialReadQueue.put([True,self._portConn.recv()])
+                    #Otherwise just get rid of the reply from the pipe
                     else:
-                        #Try writing to the virtual port
-                        self._portConn.send(message)
-                        #Get reply
-                        if self._portConn.poll(0.3):
-                            #If we want a reply, read the response from the Magstim and place it in the serialReadQueue
-                            if reply:
-                                self.serialReadQueue.put_nowait([True,self._portConn.recv()])
-                            #Otherwise just get rid of the reply from the pipe
-                            else:
-                                self._portConn.recv()
-                        else:
-                            self.serialReadQueue.put_nowait([False,'Timed out while waiting for response.'])
-                except Queue.Empty:
-                    pass
+                        self._portConn.recv()
+                else:
+                    self._serialReadQueue.put([False,'Timed out while waiting for response.'])
         #If we get here, it's time to shutdown the serial port controller
         self._portConn.close()
         self._magstimConn.close()
