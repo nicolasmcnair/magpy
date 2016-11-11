@@ -187,7 +187,7 @@ class Magstim(object):
             error, priorPower = self.getParameters()
             priorPower = priorPower['magstimParam']['power']
         
-        magstimReply = self._processCommand('@' + str(int(newPower)).zfill(3),'instr' if receipt else None,3)
+        magstimReply = self._processCommand('@' + str(int(newPower)).zfill(3),'instr' if (receipt or delay) else None,3)
         
         #If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
         if delay and not magstimReply[0]:
@@ -199,7 +199,7 @@ class Magstim(object):
             else:
                 return (9,'Could not obtain prior power settings.')
             
-        return magstimReply
+        return magstimReply if receipt else None
     
     def getTemperature(self):
         """ 
@@ -375,7 +375,7 @@ class BiStim(Magstim):
             error, priorPower = self.getParameters()
             priorPower = priorPower['bistimParam']['powerA']
         
-        magstimReply = self._processCommand('@' + str(int(newPower)).zfill(3),'instr' if receipt else None,3)
+        magstimReply = self._processCommand('@' + str(int(newPower)).zfill(3),'instr' if (receipt or delay) else None,3)
         
         #If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
         if delay and not magstimReply[0]:
@@ -387,7 +387,7 @@ class BiStim(Magstim):
             else:
                 return (9,'Could not obtain prior power settings in order to enforce delay.')
             
-        return magstimReply
+        return magstimReply if receipt else None
     
     def setPowerB(self,newPower,receipt=False,delay=False):
         """ 
@@ -415,7 +415,7 @@ class BiStim(Magstim):
             error, priorPower = self.getParameters()
             priorPower = priorPower['bistimParam']['powerB']
         
-        magstimReply = self._processCommand('A' + str(int(newPower)).zfill(3),'instr' if receipt else None,3)
+        magstimReply = self._processCommand('A' + str(int(newPower)).zfill(3),'instr' if (receipt or delay) else None,3)
         
         #If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
         if delay and not magstimReply[0]:
@@ -427,7 +427,7 @@ class BiStim(Magstim):
             else:
                 return (9,'Could not obtain prior power settings in order to enforce delay.')
             
-        return magstimReply
+        return magstimReply if receipt else None
     
     def setPulseInterval(self,newInterval,receipt=False):
         """ 
@@ -488,7 +488,18 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        return self._processCommand('[010' if enable else '[000','instrRapid' if receipt else None,4)        
+        magstimReply = self._processCommand('[010' if enable else '[000','instrRapid',4)
+        if enable and not magstimReply[0]:
+            updateError,currentParameters = self.getParameters()
+            if not updateError:
+                if currentParameters['rapidParam']['frequency'] == 0:
+                    updateError,currentParameters = self._processCommand('B0010','instrRapid',4)
+                    if updateError:
+                        magstimReply = (10,'Could not change frequency from zero.')
+            else:
+                magstimReply = (9,'Could not get parameters to determine current frequency.')
+        
+        return magstimReply if receipt else None
 
     def ignoreCoilSafetySwitch(self,receipt=False):
         """ 
@@ -549,11 +560,11 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """        
-        magstimReply = self._processCommand('B' + str(int(newFrequency)).zfill(4),'instrRapid' if receipt else None,4) 
-        if confirm:
+        magstimReply = self._processCommand('B' + str(int(newFrequency)).zfill(4),'instrRapid',4) 
+        if not magstimReply[0]:
             updateError,currentParameters = self.getParameters()
             if not updateError:
-                updateError,currentParameters = self._processCommand('[' + str(int(floor((currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency']) / 100))).zfill(3),'instrRapid' if receipt else None,4)
+                updateError,currentParameters = self._processCommand('D' + str(max(1,int(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])))).zfill(4),'instrRapid',4)
                 if updateError:
                     magstimReply = (10,'Could not change number of pulses to reflect new frequency.')
             else:
@@ -579,11 +590,11 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        magstimReply = self._processCommand('D' + str(int(newNPulses)).zfill(4),'instrRapid' if receipt else None,4)
-        if magstimReply[0]:
+        magstimReply = self._processCommand('D' + str(max(1,int(newNPulses))).zfill(4),'instrRapid',4)
+        if not magstimReply[0]:
             updateError,currentParameters = self.getParameters()
             if not updateError:
-                updateError,currentParameters = self._processCommand('[' + str(int(ceil((currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']) * 100))).zfill(3),'instrRapid' if receipt else None,4)
+                updateError,currentParameters = self._processCommand('[' + str(int(ceil((currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']) * 10))).zfill(3),'instrRapid' if receipt else None,4)
                 if updateError:
                     magstimReply = (10,'Could not change duration to reflect new number of pulses.')
             else:
@@ -609,11 +620,11 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        magstimReply = self._processCommand('[' + str(int(newDuration)).zfill(3),'instrRapid' if receipt else None,4)
-        if magstimReply[0]:
+        magstimReply = self._processCommand('[' + str(int(newDuration)).zfill(3),'instrRapid',4)
+        if not magstimReply[0]:
             updateError,currentParameters = self.getParameters()
             if not updateError:
-                updateError,currentParameters = self._processCommand('[' + str(int(floor((currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency']) / 100))).zfill(3),'instrRapid' if receipt else None,4)
+                updateError,currentParameters = self._processCommand('D' + str(max(1,int(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])))).zfill(4),'instrRapid',4)
                 if updateError:
                     magstimReply = (10,'Could not change number of pulses to reflect new duration.')
             else:
@@ -657,45 +668,46 @@ class Rapid(Magstim):
         if delay:
             error, priorPower = self.getParameters()
             priorPower = priorPower['rapidParam']['power']
-
-
-        magstimReply = self._processCommand('@' + str(int(newPower)).zfill(3),'instr' if receipt else None,3)
-
-        if magstimReply[0]:
-            updateError,currentParameters = self.getParameters()
-            if not updateError and not currentParameters['rapid']['singlePulseMode']:
-                if self._super:
-                    if 30 < currentParameters['rapidParam']['power'] < 50:
-                        maxFrequency = ceil(100 - (2.5 * (currentParameters['rapidParam']['power'] - 30)))
-                    elif currentParameters['rapidParam']['power'] <= 100:
-                        maxFrequency = ceil(50 - (0.5 * (currentParameters['rapidParam']['power'] - 50)))
-                    else:
-                        maxFrequency = 25
-                else:
-                    if 30 < currentParameters['rapidParam']['power'] < 38:
-                        maxFrequency = floor(46 - (1.2 * (self._params['power'] - 31)))
-                    elif currentParameters['rapidParam']['power'] < 43:
-                        maxFrequency = floor(37 - ((4/3) * (self._params['power'] - 40)))
-                    elif currentParameters['rapidParam']['power'] < 47:
-                        maxFrequency = 33
-                    elif currentParameters['rapidParam']['power'] < 50:
-                        maxFrequency = ceil(30 - (self._params['power'] - 50))
-                    elif currentParameters['rapidParam']['power'] < 70:
-                        maxFrequency = int(30 - (0.5 * (self._params['power'] - 50)))
-                    elif currentParameters['rapidParam']['power'] <= 100:
-                        maxFrequency = int(20 - ((1/6) * (self._params['power'] - 70)))
-                if currentParameters['rapidParam']['frequency'] > maxFrequency:
-                    if not self.setFreqeuncy(maxFrequency * 10)[0]:
-                        magstimReply = (10,'Could not change frequency to reflect new intensity.')
-            else:
-                magstimReply = (9,'Could not get parameters to determine current settings.')
         
-        if magstimReply[0] and delay and not error:
-            if newPower > priorPower:
-                sleep((newPower - priorPower) * 0.01)
+        magstimReply = self._processCommand('@' + str(int(newPower)).zfill(3),'instr',3)
+        
+        if not magstimReply[0]:
+            updateError,currentParameters = self.getParameters()
+            if not currentParameters['rapid']['singlePulseMode']:
+                if not updateError:
+                    if self._super:
+                        if 30 < currentParameters['rapidParam']['power'] < 50:
+                            maxFrequency = ceil(100 - (2.5 * (currentParameters['rapidParam']['power'] - 30)))
+                        elif currentParameters['rapidParam']['power'] <= 100:
+                            maxFrequency = ceil(50 - (0.5 * (currentParameters['rapidParam']['power'] - 50)))
+                        else:
+                            maxFrequency = 25
+                    else:
+                        if 30 < currentParameters['rapidParam']['power'] < 38:
+                            maxFrequency = floor(46 - (1.2 * (currentParameters['rapidParam']['power'] - 31)))
+                        elif currentParameters['rapidParam']['power'] < 43:
+                            maxFrequency = floor(37 - ((4/3) * (currentParameters['rapidParam']['power'] - 40)))
+                        elif currentParameters['rapidParam']['power'] < 47:
+                            maxFrequency = 33
+                        elif currentParameters['rapidParam']['power'] < 50:
+                            maxFrequency = ceil(30 - (currentParameters['rapidParam']['power'] - 50))
+                        elif currentParameters['rapidParam']['power'] < 70:
+                            maxFrequency = int(30 - (0.5 * (currentParameters['rapidParam']['power'] - 50)))
+                        elif currentParameters['rapidParam']['power'] <= 100:
+                            maxFrequency = int(20 - ((1/6) * (currentParameters['rapidParam']['power'] - 70)))
+                    if currentParameters['rapidParam']['frequency'] > maxFrequency:
+                        if not self.setFreqeuncy(maxFrequency * 10)[0]:
+                            magstimReply = (10,'Could not change frequency to reflect new intensity.')
+                else:
+                    magstimReply = (9,'Could not get parameters to determine current settings.')
+        
+        if delay and not magstimReply[0]:
+            if not error:
+                if newPower > priorPower:
+                    sleep((newPower - priorPower) * 0.01)
+                else:
+                    sleep((priorPower - newPower) * 0.1)
             else:
-                sleep((priorPower - newPower) * 0.1)
-        else:
-            magstimReply = (9,'Could not obtain prior power settings in order to enforce delay.')
+                magstimReply = (9,'Could not obtain prior power settings in order to enforce delay.')
         
         return magstimReply if receipt else None

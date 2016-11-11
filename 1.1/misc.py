@@ -66,7 +66,6 @@ class serialPortController(Process):
             self._port.writeTimeout=0.3
             self._port.portFlush = self._port.flushInput
             self._port.anyWaiting = self._port.inWaiting
-        
         #This continually monitors the serialWriteQueue for write requests
         while True:
             message,reply,readBytes = self._serialWriteQueue.get()
@@ -99,9 +98,9 @@ class serialPortController(Process):
                         #Return the reply if we want it
                         if reply:
                             self._serialReadQueue.put([0,message])
-                    except serial.SerialException:
+                    except:# serial.SerialException:
                         self._serialReadQueue.put([2,'Could not read the magstim response.'])
-                except serial.SerialException:
+                except:# serial.SerialException:
                     self._serialReadQueue.put([1,'Could not send the command.'])
         #If we get here, it's time to shutdown the serial port controller
         self._port.close()
@@ -131,7 +130,6 @@ class connectionRobot(Process):
         
         N.B. This should be called via start() from the parent Python process.
         """
-        
         #This sends an "enable remote control" command to the serial port controller every 500ms; only runs once the stimulator is armed
         while True:
             #If the robot is currently paused, wait until we get a None (stop) or a 1 (start/resume) in the queue
