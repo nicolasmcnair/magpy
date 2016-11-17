@@ -388,12 +388,12 @@ class virtualPortController(Thread):
                 if self._portConn.poll(0.3):
                     #If we want a reply, read the response from the Magstim and place it in the serialReadQueue
                     if reply:
-                        self._serialReadQueue.put([True,self._portConn.recv()])
+                        self._serialReadQueue.put([0,self._portConn.recv()])
                     #Otherwise just get rid of the reply from the pipe
                     else:
                         self._portConn.recv()
                 else:
-                    self._serialReadQueue.put([False,'Timed out while waiting for response.'])
+                    self._serialReadQueue.put([2,'Timed out while waiting for response.'])
         #If we get here, it's time to shutdown the serial port controller
         self._portConn.close()
         self._magstimConn.close()
