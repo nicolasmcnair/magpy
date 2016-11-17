@@ -229,35 +229,35 @@ class virtualRapid(virtualMagstim):
                         'wait'      : 1}
 
     def _okToFire(self):
-        return default_timer() > (self._lastFired + 1) if self._rapidStatus['singlePulseMode'] else default_timer() > (self._lastFired + 0.5)
+        return default_timer() > (self._lastFired + 1)
 
     def _getParams(self):
         return str(self._params['power']).zfill(3) + str(self._params['frequency']).zfill(4) + str(self._params['nPulses']).zfill(4) + str(self._params['duration']).zfill(3) + str(self._params['wait']).zfill(3)
 
     def _getMaxFreq(self):
         if self._super:
-            maxFrequency = 100
+            maxFrequency = 1000
             if 30 < self._params['power'] < 50:
-                maxFrequency = ceil(100 - (0.25 * (self._params['power'] - 30)))
+                maxFrequency = 10 * int(ceil(100 - (0.25 * (self._params['power'] - 30))))
             elif power <= 100:
-                maxFrequency = 10 * ceil(50 - (0.5 * (self._params['power'] - 50)))
+                maxFrequency = 10 * int(ceil(50 - (0.5 * (self._params['power'] - 50))))
             else:
                 maxFrequency = 250
         #...but gets pretty complex for a Standard Rapid for some reason
         else:
-            maxFrequency = 50
+            maxFrequency = 500
             if 30 < self._params['power'] < 38:
-                maxFrequency = floor(46 - (1.2 * (self._params['power'] - 31)))
+                maxFrequency = 10 * int(floor(46 - (1.2 * (self._params['power'] - 31))))
             elif self._params['power'] < 43:
-                maxFrequency = floor(37 - ((4/3) * (self._params['power'] - 40)))
+                maxFrequency = 10 * int(floor(37 - ((4/3) * (self._params['power'] - 40))))
             elif self._params['power'] < 47:
                 maxFrequency = 330
             elif self._params['power'] < 50:
-                maxFrequency = ceil(30 - (self._params['power'] - 50))
+                maxFrequency = 10 * int(ceil(30 - (self._params['power'] - 50)))
             elif self._params['power'] < 70:
-                maxFrequency = int(30 - (0.5 * (self._params['power'] - 50)))
+                maxFrequency = 10 * int(30 - (0.5 * (self._params['power'] - 50)))
             elif self._params['power'] <= 100:
-                maxFrequency = int(20 - ((1/6) * (self._params['power'] - 70)))
+                maxFrequency = 10 * int(20 - ((1/6) * (self._params['power'] - 70)))
         return maxFrequency
 
     def _processMessage(self,message):
@@ -266,7 +266,7 @@ class virtualRapid(virtualMagstim):
             parentParsedMessage = '?'
         # Otherwise, try and process message using parent function
         else:
-            parentParsedMessage = super(virtualBiStim,self)._processMessage(message)
+            parentParsedMessage = super(virtualRapid,self)._processMessage(message)
         # If parent returns ?, then it didn't understand the message - so try and parse it here
         if parentParsedMessage[0] == '?':
             if message[0] in {'\\','@','E','b','^','_','B','D','['}:
@@ -277,48 +277,43 @@ class virtualRapid(virtualMagstim):
                     messageData += self._getParams()
                 elif message[0] == '@':
                     newParameter = int(message[1:-1])
-                    if self._instrStatus['remoteStatus'] and ((0<= newParameter <= 100) or (self._instrStatus['enhancedPowerMode'] and (101<= newParameter <= 110))):
+                    if self._instrStatus['remoteStatus'] and (0 <= newParameter <= 110):
                         self._params['power'] = newParameter
-                        # If in rTMS mode, adjust settings based on new power setting?
-                        #if not self._rapidStatus['singlePulseMode']:
-                        #    self._params['frequency'] = min(self._params['frequency'],self._getMaxFreq())
-                        #    self._params['nPulses'] = int((self._params['frequency'] / 10 ) * (self._params['duration'] / 10))  
                     else:
                         messageData = 'S'
                 elif message[0] == 'b':
                     pass # Ignoring coil safety switch, so just pass
                 elif message[0] == '^':
+                        messageData += self._getRapidStatus 
                         self._params['enhancedPowerMode'] = 1
-                        messageData += self._getRapidStatus # DOES THIS UPDATE BEFORE OR AFTER?
                 elif message[0] == '_':
-                        self._params['enhancedPowerMode'] = 0
-                        self._params['power'] = min(self._params['power'], 100)
                         messageData += self._getRapidStatus
+                        self._params['enhancedPowerMode'] = 0
                 elif message[0] == '[' and self._params['singlePulseMode']:
                     if int(message[1:-1]) == 1:
                         self._params['singlePulseMode'] = 0
-                        self._params['duration'] = 1
+                        messageData += self._getRapidStatus
                     else:
                         messageData = 'S'
                 elif message[0] in {'B','D','['} and not self._params['singlePulseMode']:
                     if message[0] == 'B':
                         newParameter = int(message[1:-1])
                         if newParameter < self._getMaxFreq():
-                            self._params['frequency'] = newParameter
                             messageData += self._getRapidStatus 
+                            self._params['frequency'] = newParameter
                         else:
                            messageData = 'S'
                     elif message[0] == 'D':
                         newParameter = int(message[1:-1])
                         if 1<= newParameter <= 1000:
+                            messageData += self._getRapidStatus 
                             self._params['nPulses'] = newParameter
-                            messageData += self._getRapidStatus
                         else:
                             messageData = 'S'
                     elif message[0] == '[':
                         newParameter = int(message[1:-1])
-                        messageData += self._getRapidStatus
                         if 1<= newParameter <= 100:
+                            messageData += self._getRapidStatus 
                             self._params['duration'] = newParameter
                         elif newParameter == 0:
                             self._params['singlePulseMode'] = 1
