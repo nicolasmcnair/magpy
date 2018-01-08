@@ -114,9 +114,9 @@ class Magstim(object):
                         return (4,'Invalid data provided.')
                     elif reply[1] == 'S':
                         return (5,'Command conflicts with current system configuration.')
-                    elif reply[0] <> commandString[0]:
+                    elif reply[0] != commandString[0]:
                         return (6,'Unexpected command confirmation received.')
-                    elif calcCRC(reply[0:-1]) <> reply[-1]:
+                    elif calcCRC(reply[0:-1]) != reply[-1]:
                         return (7,'Message contents and CRC value do not match.')
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
