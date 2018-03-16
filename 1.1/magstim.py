@@ -127,7 +127,7 @@ class Magstim(object):
                 else:
                     self._robotQueue.put(0)
             #Then return the parsed response if requested
-            return (0,parseMagstimResponse(list(reply[1:-1]),receiptType)) if receiptType is not None else None
+            return (0,parseMagstimResponse(list(reply[1:-1]),receiptType) if receiptType is not None else None)
         else:
             return (8,'You have not established control of the Magstim unit.')
     
