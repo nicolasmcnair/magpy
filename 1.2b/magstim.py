@@ -280,13 +280,13 @@ class Magstim(object):
                                                  'frequency': int(''.join(responseString[3:7])) / 10.0,
                                                  'nPulses':   int(''.join(responseString[7:12])),
                                                  'duration':  int(''.join(responseString[12:16])) / 10.0,
-                                                 'wait':      int(''.join(responseString[16:-1])) / 10.0}
+                                                 'wait':      int(''.join(responseString[16:])) / 10.0}
             else:
                 magstimResponse['rapidParam'] = {'power':     int(''.join(responseString[0:3])),
                                                  'frequency': int(''.join(responseString[3:7])) / 10.0,
                                                  'nPulses':   int(''.join(responseString[7:11])),
                                                  'duration':  int(''.join(responseString[11:14])) / 10.0,
-                                                 'wait':      int(''.join(responseString[14:-1])) / 10.0}
+                                                 'wait':      int(''.join(responseString[14:])) / 10.0}
     
         elif responseType == 'magstimTemp':
             magstimResponse['magstimTemp'] = {'coil1Temp': int(''.join(responseString[0:3])) / 10.0,
@@ -300,6 +300,10 @@ class Magstim(object):
 
         elif responseType == 'error':
             magstimResponse['currentCode'] = responseString[:-1]
+
+        elif responseType == 'instrCharge':
+             magstimResponse['chargeDelay'] = int(''.join(responseString))# * 10 (Not sure if this should be multiplied by 10 or not...)
+
     
         return magstimResponse
 
