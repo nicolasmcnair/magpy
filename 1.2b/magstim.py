@@ -10,7 +10,7 @@ Code relating to controlling 200^2, BiStim^2, and Rapid^2 Magstim TMS units
 from __future__ import division
 import serial
 from sys import version_info, platform
-from math import floor, ceil
+from math import floor
 from time import sleep
 from multiprocessing import Queue, Process
 from functools import partial
@@ -317,12 +317,12 @@ class Magstim(object):
         self._robot.daemon = True
         self._connected = False
         self._connectionCommand = ('Q@n', None, 3)
+        self._pokeCommand = 'Qn'
         self._queryCommand = partial(self.remoteControl, enable=True, receipt=True)
-            
+        
     def _setupSerialPort(self, address):
         if address.lower() == 'virtual':
-            from virtual import virtualPortController
-            self._connection = virtualPortController(self.__class__.__name__, self._sendQueue, self._receiveQueue)
+            pass
         else:
             self._connection = serialPortController(address, self._sendQueue, self._receiveQueue)
     
@@ -522,7 +522,7 @@ class Magstim(object):
         if silent and self._connected:
             self._robotQueue.put(0)
         else:
-            self._processCommand('Q@', None, 3)
+            self._processCommand(self._pokeCommand, None, 3)
             
     def arm(self, receipt=False, delay=False):
         """ 
@@ -825,7 +825,6 @@ class Rapid(Magstim):
 
     def getRapidMaxOnTime(power, frequency):
         return 63000.0 / (frequency * Rapid.JOULES[power])
-        
 
     def getRapidMaxContinuousOperationFrequency(power):
         return 1050.0 / Rapid.JOULES[power]
@@ -837,18 +836,17 @@ class Rapid(Magstim):
         # If an unlock code has been supplied, then the Rapid requires a different command to stay in contact with.
         if self._unlockCode is not None:
             self._connectionCommand = ('x@G', None, 6)
+            self._pokeCommand = 'x@'
             self._queryCommand = self.getSystemStatus
         self._voltage = voltage
         self._version = (0, 0, 0)
         self._parameterReturnBytes = None
-        self._lastTrain = defaultTimer()
         self._sequenceValidated = False
         self._repetitiveMode = False
 
     def _setupSerialPort(self, address):
         if address.lower() == 'virtual':
-            from virtual import virtualSerialPortController
-            self._connection = virtualSerialPortController(self.__name__, self._sendQueue, self._receiveQueue, self._super)
+            pass
         else:
             self._connection = serialPortController(address, self._sendQueue, self._receiveQueue)
 
@@ -1088,7 +1086,7 @@ class Rapid(Magstim):
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand('[' + str(int(ceil((currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']) * 10))).zfill(4 if self._version >= (9, 0, 0) else 3), 'instrRapid' if receipt else None, 4)
+                updateError, currentParameters = self._processCommand('[' + str(int((currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']))).zfill(4 if self._version >= (9, 0, 0) else 3), 'instrRapid' if receipt else None, 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1176,9 +1174,9 @@ class Rapid(Magstim):
             updateError, currentParameters = self.getParameters()
             if not currentParameters['rapid']['singlePulseMode']:
                 if not updateError:
-                    maxFrequency = getRapidMaxFrequency(currentParameters['rapidParam']['power'], self._super)
+                    maxFrequency = Rapid.MAX_FREQUENCY[self._voltage][self._super][currentParameters['rapidParam']['power']]
                     if currentParameters['rapidParam']['frequency'] > maxFrequency:
-                        if not self.setFreqeuncy(maxFrequency * 10)[0]:
+                        if not self.setFreqeuncy(maxFrequency)[0]:
                             return Magstim.PARAMETER_UPDATE_ERR
                 else:
                     return Magstim.PARAMETER_ACQUISTION_ERR
@@ -1247,30 +1245,19 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        #Check if minimum amount of time has passed between rTMS trains and that the current TMS sequence has been validated
-        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY:
-            if (self._lastTrain + self._getRapidMinWaitTime(parameters['rapidParam']['power'], parameters['rapidParam']['nPulses'], parameters['rapidParam']['frequency'])) < defaultTimer():
-                return Magstim.MIN_WAIT_TIME_ERR
-            if not self._sequenceValidated:
-                return Magstim.SEQUENCE_VALIDATION_ERR
-
-        error,message = self._processCommand('EH', 'instr' if receipt else None, 3)
-        self._lastTrain = defaultTimer()
-        return (error,message) if receipt else None
+        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and self._sequenceValidated:
+            return Magstim.SEQUENCE_VALIDATION_ERR
+        else:
+            return self._processCommand('EH', 'instr' if receipt else None, 3) if receipt else None
 
     def quickFire(self):
         """ 
         Trigger the stimulator to fire with very low latency using the RTS pin and a custom serial connection.
         """
-        #Check if minimum amount of time has passed between rTMS trains and that the current TMS sequence has been validated
-        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY:
-            if (self._lastTrain + self._getRapidMinWaitTime(parameters['rapidParam']['power'], parameters['rapidParam']['nPulses'], parameters['rapidParam']['frequency'])) < defaultTimer():
-                return Magstim.MIN_WAIT_TIME_ERR
-            if not self._sequenceValidated:
-                return Magstim.SEQUENCE_VALIDATION_ERR
-
-        super(Rapid,self).quickFire()
-        self._lastTrain = defaultTimer()
+        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and self._sequenceValidated:
+            return Magstim.SEQUENCE_VALIDATION_ERR
+        else:
+            super(Rapid,self).quickFire()
 
     def validateSequence(self):
         """ 
