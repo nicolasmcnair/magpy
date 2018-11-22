@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Jan 07 2016
-Last Modified on Mon Oct 8 2018
+Last Modified on Thu Nov 22 2018
 
 Code relating to controlling 200^2, BiStim^2, and Rapid^2 Magstim TMS units
 
@@ -324,7 +324,7 @@ class Magstim(object):
         
     def _setupSerialPort(self, serialConnection):
         if serialConnection.lower() == 'virtual':
-            from virtual import virtualPortController
+            from _virtual import virtualPortController
             self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue)
         else:
             self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue)
@@ -823,7 +823,7 @@ class Rapid(Magstim):
 
     def _setupSerialPort(self, serialConnection):
         if serialConnection.lower() == 'virtual':
-            from virtual import virtualPortController
+            from _virtual import virtualPortController
             self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue,superRapid=self._super,unlockCode=self._unlockCode,voltage=self._voltage,version=self._version)
         else:
             self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue)

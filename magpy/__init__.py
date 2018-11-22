@@ -1,1 +1,1 @@
-from .magstim import Magstim, BiStim, Rapid
+__all__ = ["magstim"]
