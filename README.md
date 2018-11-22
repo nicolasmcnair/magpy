@@ -6,10 +6,10 @@ Currently, MagPy supports Rapid Magstim stimulators with software version 6 or l
 
 ## Installation
 
-MagPy can be installed easily using the pip package manager, provided the host machine also has git installed:
+MagPy can be installed easily using the pip package manager:
 
 ```
-pip install git+https://github.com/nicolasmcnair/magpy.git
+pip install MagPy_TMS
 ```
 
 ## Usage
