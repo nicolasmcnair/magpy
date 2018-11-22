@@ -2,7 +2,6 @@
 
 from setuptools import setup
 
-
 install_packages = ['magpy']
 
 setup(
@@ -15,5 +14,4 @@ setup(
 	packages=['magpy'],
 	python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*',
 	install_requires=['PySerial']
-
 )
