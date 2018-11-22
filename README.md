@@ -33,4 +33,4 @@ magstim.fire()
 magstim.disconnect()
 ```
 
-**Note**: If connecting to a MagStim on a computer running macOS, the address of the serial port you use to create the MagStim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
+**Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
