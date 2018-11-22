@@ -2,14 +2,14 @@
 
 A Python toolbox for controlling Magstim TMS stimulators via serial communication.
 
-Currently, MagPy supports Rapid Magstim stimulators with software version 6 or lower. The most recent version (1.2b found in the 'magpy' folder) is a work-in-progress to update MagPy to support software versions up to 10. There may be bugs!
+Currently, MagPy supports Rapid Magstim stimulators with software version 6 or lower. The most recent version (1.2.0b1) is a work-in-progress to update MagPy to support software versions up to 10. There may be bugs!
 
 ## Installation
 
-MagPy can be installed easily using the pip package manager:
+MagPy can be installed easily using the pip package manager, provided the host machine also has git installed:
 
 ```
-pip install MagPy_TMS
+pip install git+https://github.com/nicolasmcnair/magpy.git
 ```
 
 ## Usage
