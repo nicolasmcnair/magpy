@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Jan 07 2016
-Last Modified on Fri Aug 10 2018
+Last Modified on Mon Oct 8 2018
 
 Code relating to controlling 200^2, BiStim^2, and Rapid^2 Magstim TMS units
 
@@ -10,12 +10,16 @@ Code relating to controlling 200^2, BiStim^2, and Rapid^2 Magstim TMS units
 from __future__ import division
 import serial
 from sys import version_info, platform
+from os.path import realpath, join, dirname
+from os import getcwd
 from math import floor
 from time import sleep
 from multiprocessing import Queue, Process
 from functools import partial
+from yaml import load
+from ast import literal_eval
 
-#switch timer based on platform
+# Switch timer based on platform
 if platform == 'win32':
     # On Windows, use time.clock
     from time import clock
@@ -24,6 +28,14 @@ else:
     # On other platforms use time.time
     from time import time    
     defaultTimer = time
+
+# Calculate checksum for command
+def calcCRC(command):
+    """Return the CRC checksum for the command string."""
+    # Convert command string to sum of ASCII values
+    commandSum = sum(bytearray(command,encoding='utf-8'))
+    # Convert command sum to binary, then invert and return 8-bit character value
+    return chr(~commandSum & 0xff) 
 
 class MagstimError(Exception):
     pass
@@ -41,13 +53,13 @@ class serialPortController(Process):
 
     # Error codes
     SERIAL_WRITE_ERR = (1, 'SERIAL_WRITE_ERR: Could not send the command.')
-    SERIAL_READ_ERR  = (2, 'SERIAL_READ_ERR: Could not read the magstim response.')    
+    SERIAL_READ_ERR  = (2, 'SERIAL_READ_ERR:  Could not read the magstim response.')    
     
-    def __init__(self, address, serialWriteQueue, serialReadQueue):
+    def __init__(self, serialConnection, serialWriteQueue, serialReadQueue):
         Process.__init__(self)
         self._serialWriteQueue = serialWriteQueue
         self._serialReadQueue = serialReadQueue
-        self._address = address
+        self._address = serialConnection
 
     def run(self):
         """
@@ -58,19 +70,19 @@ class serialPortController(Process):
         N.B. This should be called via start() from the parent Python process.
         """
         
-        #N.B. most of these settings are actually the default in PySerial, but just being careful.
-        self._port = serial.Serial(port = self._address,
-                                   baudrate = 9600,
-                                   bytesize = serial.EIGHTBITS,
-                                   stopbits = serial.STOPBITS_ONE,
-                                   parity = serial.PARITY_NONE,
-                                   xonxoff = False)
+        # N.B. most of these settings are actually the default in PySerial, but just being careful.
+        self._port = serial.Serial(port=self._address,
+                                   baudrate=9600,
+                                   bytesize=serial.EIGHTBITS,
+                                   stopbits=serial.STOPBITS_ONE,
+                                   parity=serial.PARITY_NONE,
+                                   xonxoff=False)
             
-        #Make sure the RTS pin is set to off
+        # Make sure the RTS pin is set to off
         self._port.setRTS(False)
             
-        #Set up version compatibility
-        if version_info >= (3 ,0):
+        # Set up version compatibility
+        if version_info >= (3, 0):
             self._port.write_timeout = 0.3
             self._port.portFlush = self._port.reset_input_buffer
             self._port.anyWaiting = self._port.in_waiting
@@ -78,44 +90,44 @@ class serialPortController(Process):
             self._port.writeTimeout = 0.3
             self._port.portFlush = self._port.flushInput
             self._port.anyWaiting = self._port.inWaiting
-        #This continually monitors the serialWriteQueue for write requests
+        # This continually monitors the serialWriteQueue for write requests
         while True:
             message, reply, readBytes = self._serialWriteQueue.get()
-            #If the first part of the message is None this signals the process to close the port and stop
+            # If the first part of the message is None this signals the process to close the port and stop
             if message is None:
                 break
-            #If the first part of the message is a 1 this signals the process to trigger a quick fire using the RTS pin
+            # If the first part of the message is a 1 this signals the process to trigger a quick fire using the RTS pin
             elif message == 1:
                 self._port.setRTS(True)
-            #If the first part of the message is a -1 this signals the process to reset the RTS pin
+            # If the first part of the message is a -1 this signals the process to reset the RTS pin
             elif message == -1:                
                 self._port.setRTS(False)
-            #Otherwise, the message is a command string
+            # Otherwise, the message is a command string
             else:
-                #If there's any rubbish in the input buffer clear it out
+                # There shouldn't be any rubbish in the input buffer, but check and clear it just in case
                 if self._port.anyWaiting():
                     self._port.portFlush()
                 try:
-                    #Try writing to the port
+                    # Try writing to the port
                     self._port.write(message)
-                    #Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
+                    # Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
                     try:
-                        #Read the first byte
+                        # Read the first byte
                         message = self._port.read(1)
-                        #If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
+                        # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
                         if message == 'N':
                             while ord(message[-1]):
                                 message += self._port.read(1)
-                            #After the end of the version number, read one more byte to grab the CRC
+                            # After the end of the version number, read one more byte to grab the CRC
                             message += self._port.read(1)
-                        #If the first byte is not '?', then the message was understoof so carry on reading in the response (if it was a '?', then this will be the only returned byte).
+                        # If the first byte is not '?', then the message was understood so carry on reading in the response (if it was a '?', then this will be the only returned byte).
                         elif message != '?':
-                            #Read the second byte
+                            # Read the second byte
                             message += self._port.read(1)
-                            #If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
-                            #in which case just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
+                            # If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
+                            # In these cases, just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
                             message += self._port.read(readBytes - 2) if message[-1] not in {'S', '?'} else self._port.read(1)
-                        #Return the reply if we want it
+                        # Return the reply if we want it
                         if reply:
                             self._serialReadQueue.put([0, message])
                     except:# serial.SerialException:
@@ -154,9 +166,9 @@ class connectionRobot(Process):
         
         N.B. This should be called via start() from the parent Python process.
         """
-        #This sends an "enable remote control" command to the serial port controller every 500ms; only runs once the stimulator is armed
+        # This sends an "enable remote control" command to the serial port controller every 500ms; only runs once the stimulator is armed
         while True:
-            #If the robot is currently paused, wait until we get a None (stop) or a 1 (start/resume) in the queue
+            # If the robot is currently paused, wait until we get a None (stop) or a 1 (start/resume) in the queue
             while self._paused:
                 message = self._updateRobotQueue.get()
                 if message is None:
@@ -164,31 +176,31 @@ class connectionRobot(Process):
                     self._paused = False
                 elif message == 1:
                     self._paused = False
-            #Check if we're stopping the robot
+            # Check if we're stopping the robot
             if self._stopped:
                 break
-            #Update next poll time to 500 ms
+            # Update next poll time to 500 ms
             self._nextPokeTime = defaultTimer() + 0.5
-            #While waiting for next poll...
+            # While waiting for next poll...
             while defaultTimer() < self._nextPokeTime:
-                #...check to see if there has been an update send from the parent magstim object
+                # ...check to see if there has been an update send from the parent magstim object
                 if not self._updateRobotQueue.empty():
                     message = self._updateRobotQueue.get()
-                    #If the message is None this signals the process to stop
+                    # If the message is None this signals the process to stop
                     if message is None:
                         self._stopped = True
                         break
-                    #If the message is -1, this signals the process to pause
+                    # If the message is -1, this signals the process to pause
                     elif message == -1:
                         self._paused = True
                         break
-                    #Any other message is signals a command has been sent to the serial port controller, so bump the next poke time by 500ms
+                    # Any other message is signals a command has been sent to the serial port controller, so bump the next poke time by 500ms
                     else:
                         self._nextPokeTime = defaultTimer() + 0.5
-            #If we made it all the way to the next poll time, send a poll to the port controller
+            # If we made it all the way to the next poll time, send a poll to the port controller
             else:
                 self._serialWriteQueue.put(self._connectionCommand)
-        #If we get here, it's time to shutdown the robot
+        # If we get here, it's time to shutdown the robot
         return
         
 class Magstim(object):
@@ -202,7 +214,7 @@ class Magstim(object):
          To begin sending commands to the Magstim, and start the additional Python processes, you must first call connect().
     
     Args:
-    address (str): The address of the serial port. On Windows this is typically 'COM1' or similar. To create a virtual magstim, set the address to 'virtual'
+    serialConnection (str): The address of the serial port. On Windows this is typically 'COM1' or similar. To create a virtual magstim, set the address to 'virtual'
     """
     
     # Hardware error codes (for all types of stimulators)
@@ -214,33 +226,24 @@ class Magstim(object):
     NO_REMOTE_CONTROL_ERR     = (8,  'NO_REMOTE_CONTROL_ERR: You have not established control of the Magstim unit.')
     PARAMETER_ACQUISTION_ERR  = (9,  'PARAMETER_ACQUISTION_ERR: Could not obtain prior parameter settings.')
     PARAMETER_UPDATE_ERR      = (10, 'PARAMETER_UPDATE_ERR: Could not update secondary parameter to accommodate primary parameter change.')
-    PARAMETER_FLOAT_ERR       = (11, 'PARAMETER_FLOAT_ERR: A float value is not allowed for this parameter (potentially, under the current system settings).')
-    GET_SYSTEM_STATUS_ERR     = (12, 'GET_SYSTEM_STATUS_ERR: Cannot call getSystemStatus() until software version has been established.')
-    SYSTEM_STATUS_VERSION_ERR = (13, 'SYSTEM_STATUS_VERSION_ERR: Method getSystemStatus() is not compatible with your software version.')
-    SEQUENCE_VALIDATION_ERR   = (14, 'SEQUENCE_VALIDATION_ERR: You must call validateSequence() before you can run a rTMS train.')
-    MIN_WAIT_TIME_ERR         = (15, 'MIN_WAIT_TIME_ERR: Minimum wait time between trains violated. Call isReadyToFire() to check.')
-    MAX_ON_TIME_ERR           = (16, 'MAX_ON_TIME_ERR: Maximum on time exceeded for current train.')
-
-
-    #Calculate checksum for command
-    @staticmethod
-    def calcCRC(command):
-        """Return the CRC checksum for the command string."""
-        #Convert command string to sum of ASCII values
-        commandSum = sum(bytearray(command))
-        #Convert command sum to binary, then invert and return 8-bit character value
-        return chr(~commandSum & 0xff) 
+    PARAMETER_FLOAT_ERR       = (11, 'PARAMETER_FLOAT_ERR: A float value is not allowed for this parameter.')
+    PARAMETER_PRECISION_ERR   = (12, 'PARAMETER_PRECISION_ERR: Only one decimal placed allowed for this parameter.')
+    PARAMETER_RANGE_ERR       = (13, 'PARAMETER_RANGE_ERR: Parameter value is outside the allowed range.')
+    GET_SYSTEM_STATUS_ERR     = (14, 'GET_SYSTEM_STATUS_ERR: Cannot call getSystemStatus() until software version has been established.')
+    SYSTEM_STATUS_VERSION_ERR = (15, 'SYSTEM_STATUS_VERSION_ERR: Method getSystemStatus() is not compatible with your software version.')
+    SEQUENCE_VALIDATION_ERR   = (16, 'SEQUENCE_VALIDATION_ERR: You must call validateSequence() before you can run a rTMS train.')
+    MIN_WAIT_TIME_ERR         = (17, 'MIN_WAIT_TIME_ERR: Minimum wait time between trains violated. Call isReadyToFire() to check.')
+    MAX_ON_TIME_ERR           = (18, 'MAX_ON_TIME_ERR: Maximum on time exceeded for current train.')
     
     @staticmethod
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            magstimResponse = tuple(int(x) for x in ''.join(responseString[1:-1]).strip().split('.'))
-            #magstimResponse = tuple(int(x) for x in responseString[1:].split('.'))
+            magstimResponse = tuple(int(x) for x in ''.join(responseString[:-1]).strip())
         else:
-            #Get ASCII code of first data character
+            # Get ASCII code of first data character
             temp = ord(responseString.pop(0))
-            #Interpret bits
+            # Interpret bits
             magstimResponse = {'instr':{'standby':      temp &   1,
                                         'armed':        (temp >> 1) & 1,
                                         'ready':        (temp >> 2) & 1,
@@ -250,11 +253,11 @@ class Magstim(object):
                                         'errorType':    (temp >> 6) & 1,
                                         'remoteStatus': (temp >> 7) & 1}}
     
-        #If a Rapid system and response includes rTMS status     
+        # If a Rapid system and response includes rTMS status     
         if responseType in {'instrRapid','rapidParam','systemRapid'}:
-            #Get ASCII code of second data character        
+            # Get ASCII code of second data character        
             temp = ord(responseString.pop(0))
-            #Interpret bits
+            # Interpret bits
             magstimResponse['rapid'] = {'enhancedPowerMode':      temp & 1,
                                         'train':                 (temp >> 1) & 1,
                                         'wait':                  (temp >> 2) & 1,
@@ -264,7 +267,7 @@ class Magstim(object):
                                         'thetaPSUDetected':      (temp >> 6) & 1,
                                         'modifiedCoilAlgorithm': (temp >> 7) & 1}
     
-        #If requesting parameter settings or coil temperature
+        # If requesting parameter settings or coil temperature
         if responseType == 'bistimParam':
             magstimResponse['bistimParam'] = {'powerA':   int(''.join(responseString[0:3])),
                                               'powerB':   int(''.join(responseString[3:6])),
@@ -299,18 +302,17 @@ class Magstim(object):
                                            'chargeDelaySet':           (temp >> 2) & 1}
 
         elif responseType == 'error':
-            magstimResponse['currentCode'] = responseString[:-1]
+            magstimResponse['currentErrorCode'] = responseString[:-1]
 
         elif responseType == 'instrCharge':
-             magstimResponse['chargeDelay'] = int(''.join(responseString))# * 10 (Not sure if this should be multiplied by 10 or not...)
-
-    
+             magstimResponse['chargeDelay'] = int(''.join(responseString)) * 10 #  Not sure if this should be multiplied by 10 as documentation is conflicting
+             
         return magstimResponse
 
-    def __init__(self, address):
+    def __init__(self, serialConnection):
         self._sendQueue = Queue()
         self._receiveQueue = Queue()
-        self._setupSerialPort(address)
+        self._setupSerialPort(serialConnection)
         self._robotQueue = Queue()
         self._connection.daemon = True
         self._robot = connectionRobot(self._sendQueue, self._robotQueue)
@@ -320,11 +322,12 @@ class Magstim(object):
         self._pokeCommand = 'Qn'
         self._queryCommand = partial(self.remoteControl, enable=True, receipt=True)
         
-    def _setupSerialPort(self, address):
-        if address.lower() == 'virtual':
-            pass
+    def _setupSerialPort(self, serialConnection):
+        if serialConnection.lower() == 'virtual':
+            from virtual import virtualPortController
+            self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue)
         else:
-            self._connection = serialPortController(address, self._sendQueue, self._receiveQueue)
+            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue)
     
     def connect(self):
         """ 
@@ -378,20 +381,20 @@ class Magstim(object):
         If receiptType argument is None:
             None
         """
-        #Only process command if toggling remote control, querying parameters, or disarming, or otherwise only if connected to the Magstim
-        #N.B. For Rapid stimulators, we first need to have established what version number we are (which sets _parameterReturnBytes) before we can query parameters
+        # Only process command if toggling remote control, querying parameters, or disarming, or otherwise only if connected to the Magstim
+        # N.B. For Rapid stimulators, we first need to have established what version number we are (which sets _parameterReturnBytes) before we can query parameters
         if self._connected or (commandString[0] in {'Q', 'R', 'J', 'F'}) or commandString == 'EA' or (commandString[0] == '\\' and self._parameterReturnBytes is not None):
-            #Put command in the send queue to the serial port controller along with what kind of reply is requested and how many bytes to read back from the Magstim
-            self._sendQueue.put((commandString + Magstim.calcCRC(commandString), receiptType, readBytes))
-            #If expecting a response, start inspecting the receive queue back from the serial port controller
+            # Put command in the send queue to the serial port controller along with what kind of reply is requested and how many bytes to read back from the Magstim
+            self._sendQueue.put((commandString + calcCRC(commandString), receiptType, readBytes))
+            # If expecting a response, start inspecting the receive queue back from the serial port controller
             if receiptType is not None:
                 error, reply = self._receiveQueue.get()
-                #If error is true, that means we either couldn't send the command or didn't get anything back from the Magstim
+                # If error is true, that means we either couldn't send the command or didn't get anything back from the Magstim
                 if error:
                     return (error, reply)
-                #If we did get something back from the Magstim, parse the message and the return it
+                # If we did get something back from the Magstim, parse the message and the return it
                 else:
-                    #Check for error messages (error codes 1 and 2 are serial port write/read errors; 8 (below) is for not having established remote control)
+                    # Check for error messages (error codes 1 and 2 are serial port write/read errors; 8 (below) is for not having established remote control)
                     if reply[0] == '?':
                         return Magstim.INVALID_COMMAND_ERR
                     elif reply[1] == '?':
@@ -400,7 +403,7 @@ class Magstim(object):
                         return Magstim.COMMAND_CONFLICT_ERR
                     elif reply[0] != commandString[0]:
                         return Magstim.INVALID_CONFIRMATION_ERR
-                    elif Magstim.calcCRC(reply[0:-1]) != reply[-1]:
+                    elif calcCRC(reply[0:-1]) != reply[-1]:
                         return Magstim.CRC_MISMATCH_ERR
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
@@ -410,7 +413,7 @@ class Magstim(object):
                     self._robotQueue.put(1)
                 else:
                     self._robotQueue.put(0)
-            #Then return the parsed response if requested
+            # Then return the parsed response if requested
             return (0, Magstim.parseMagstimResponse(list(reply[1:-1]), receiptType) if receiptType is not None else None)
         else:
             return Magstim.NO_REMOTE_CONTROL_ERR
@@ -464,9 +467,11 @@ class Magstim(object):
         If receipt argument is False:
             None
         """
-        #Make sure we have a valid power value
+        # Make sure we have a valid power value
         if newPower % 1:
             return Magstim.PARAMETER_FLOAT_ERR
+        elif not 0 <= newPower <= 100:
+            return Magstim.PARAMETER_RANGE_ERR
 
         #If enforcing power change delay, grab current parameters
         if delay:
@@ -482,7 +487,7 @@ class Magstim(object):
         
         error, message = self._processCommand(_commandByte + str(int(newPower)).zfill(3), 'instr' if (receipt or delay) else None, 3)
         
-        #If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
+        # If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
         if delay and not error:
             if not error:
                 if newPower > priorPower:
@@ -573,24 +578,24 @@ class Magstim(object):
 
     def isArmed(self):
         """ 
-        Helper function that returns True if the Magstim is armed, False if not, or an error code if it could not be determined.
+        Helper function that returns True if the Magstim is armed, False if not if it could not be determined.
         """
         error,parameters = self._queryCommand()
-        return bool(parameters['instr']['armed']) if not error else Magstim.PARAMETER_ACQUISTION_ERR
+        return bool(parameters['instr']['armed']) if not error else False
 
     def isUnderControl(self):
         """ 
-        Helper function that returns True if the Magstim is under remote control, False if not, or an error code if it could not be determined.
+        Helper function that returns True if the Magstim is under remote control, False if not or if it could not be determined.
         """
         error,parameters = self._queryCommand()
-        return bool(parameters['instr']['remoteStatus']) if not error else Magstim.PARAMETER_ACQUISTION_ERR
+        return bool(parameters['instr']['remoteStatus']) if not error else False
 
     def isReadyToFire(self):
         """ 
-        Helper function that returns True if the Magstim is ready to fire, False if not, or an error code if it could not be determined.
+        Helper function that returns True if the Magstim is ready to fire, False if not or if it could not be determined.
         """
         error,parameters = self._queryCommand()
-        return bool(parameters['instr']['ready']) if not error else Magstim.PARAMETER_ACQUISTION_ERR
+        return bool(parameters['instr']['ready']) if not error else False
     
     def fire(self, receipt=False):
         """ 
@@ -739,11 +744,14 @@ class BiStim(Magstim):
         If receipt argument is False:
             None
         """
-        #If we're in high resolution mode, then convert to tenths of a millisecond - otherwise return an error if they've given us a decimal value
+        # If we're in high resolution mode, then convert to tenths of a millisecond
         if self._highResolutionMode:
-            newInterval = floor(newInterval * 10)
-        elif newInterval % 1:
-            return Magstim.PARAMETER_FLOAT_ERR
+            newInterval = newInterval * 10
+        # Make sure we have a valid ipi value
+        if newInterval % 1:
+            return Magstim.PARAMETER_PRECISION_ERR if self._highResolutionMode else Magstim.PARAMETER_FLOAT_ERR
+        elif not (0 <= newInterval <= 999):
+            return Magstim.PARAMETER_RANGE_ERR
 
         return self._processCommand('C' + str(int(newInterval)).zfill(3), 'instr' if receipt else None, 3)
     
@@ -760,95 +768,65 @@ class Rapid(Magstim):
          
          In addition, after each rTMS train there is an enforced delay (minimum 500 ms) before any subsequent train can be initiated or before any rTMS parameter settings can be altered.
     """
-    STANDARD = 0
-    SUPER = 1
-    SUPER_PLUS = 2
-    _115V = 0
-    _240V = 1
-    DEFAULT_VOLTAGE = _240V
-    ENFORCE_ENERGY_SAFETY = True
+    # Load settings file (resort to default values if not found)
+    __location__ = realpath(join(getcwd(), dirname(__file__)))
+    try:
+        with open(join(__location__, 'rapid_config.yaml')) as yaml_file:
+            config_data = load(yaml_file)
+    except:
+        DEFAULT_RAPID_TYPE = 0
+        DEFAULT_VOLTAGE = 240
+        DEFAULT_UNLOCK_CODE = ''
+        ENFORCE_ENERGY_SAFETY = True
+        DEFAULT_VIRTUAL_VERSION = (5,0,0)
+    else:
+        DEFAULT_RAPID_TYPE = config_data['defaultRapidType']
+        DEFAULT_VOLTAGE = config_data['defaultVoltage']
+        DEFAULT_UNLOCK_CODE = config_data['unlockCode']
+        ENFORCE_ENERGY_SAFETY = config_data['enforceEnergySafety']
+        DEFAULT_VIRTUAL_VERSION = literal_eval(config_data['virtualVersionNumber'])
 
+    # Load system info file
+    with open(join(__location__, 'rapid_system_info.yaml')) as yaml_file:
+        system_info = load(yaml_file)
     # Maximum allowed rTMS frequency based on voltage and current power setting
-    MAX_FREQUENCY = {_240V: {STANDARD:   {x: 50 for x in range(31)}.update({31:46, 32:45, 33:44, 34:42, 35:41, 36:41, 37:39, 38:39, 39:38,  40:37, 
-                                                                            41:36, 42:34, 43:33, 44:33, 45:33, 46:33, 47:33, 48:32, 49:31,  50:30,
-                                                                            51:30, 52:29, 53:29, 54:28, 55:28, 56:27, 57:27, 58:26, 59:26,  60:25,
-                                                                            61:25, 62:24, 63:24, 64:23, 65:23, 66:22, 67:22, 68:21, 69:21,  70:20,
-                                                                            71:20, 72:20, 73:20, 74:19, 75:19, 76:19, 77:19, 78:19, 79:18,  80:18,
-                                                                            81:18, 82:18, 83:18, 84:18, 85:17, 86:17, 87:17, 88:17, 89:17,  90:17,
-                                                                            91:17, 92:16, 93:16, 94:16, 95:16, 96:16, 97:16, 98:15, 99:15, 100:15}),
-                             SUPER:      {x:100 for x in range(31)}.update({31:98, 32:95, 33:93, 34:90, 35:88, 36:85, 37:83, 38:80, 39:78,  40:75, 
-                                                                            41:73, 42:70, 43:68, 44:65, 45:63, 46:60, 47:58, 48:55, 49:53,  50:50,
-                                                                            51:50, 52:49, 53:49, 54:48, 55:48, 56:47, 57:47, 58:46, 59:46,  60:45,
-                                                                            61:45, 62:44, 63:44, 64:43, 65:43, 66:42, 67:42, 68:41, 69:41,  70:40,
-                                                                            71:40, 72:39, 73:39, 74:38, 75:38, 76:37, 77:37, 78:36, 79:36,  80:35,
-                                                                            81:35, 82:34, 83:34, 84:33, 85:33, 86:32, 87:32, 88:31, 89:31,  90:30,
-                                                                            91:30, 92:29, 93:29, 94:28, 95:28, 96:27, 97:27, 98:26, 99:26, 100:25}),
-                             SUPER_PLUS: {x:100 for x in range(49)}.update({49:98, 50:97, 51:95, 52:93, 53:91, 54:88, 55:88, 56:87, 57:85, 58:84,
-                                                                            59:82, 60:80, 61:79, 62:77, 63:74, 64:74, 65:74, 66:74, 67:71, 68:70,
-                                                                            69:69, 70:68, 71:68, 72:66, 73:65, 74:62, 75:62, 76:62, 77:60, 78:59,
-                                                                            79:58, 80:57, 81:57, 82:56, 83:55, 84:55, 85:53, 86:52, 87:51, 88:50,
-                                                                            89:50, 90:49, 91:48, 92:47, 93:46, 94:46, 95:45, 96:44, 97:43, 98:42, 99:42, 100:41})},
-                     _115V: {STANDARD:   {x: 36 for x in range(31)}.update({31:35, 32:35, 33:34, 34:33, 35:32, 36:32, 37:31, 38:30, 39:29,  40:28, 
-                                                                            41:28, 42:27, 43:26, 44:26, 45:25, 46:25, 47:24, 48:24, 49:23,  50:23,
-                                                                            51:22, 52:22, 53:21, 54:21, 55:21, 56:20, 57:20, 58:19, 59:19,  60:19,
-                                                                            61:18, 62:18, 63:18, 64:18, 65:17, 66:17, 67:17, 68:16, 69:16,  70:16,
-                                                                            71:16, 72:16, 73:15, 74:15, 75:15, 76:15, 77:14, 78:14, 79:14,  80:14,
-                                                                            81:14, 82:13, 83:13, 84:13, 85:13, 86:13, 87:12, 88:12, 89:12,  90:12,
-                                                                            91:12, 92:12, 93:12, 94:12, 95:11, 96:11, 97:11, 98:11, 99:11, 100:11}),
-                             SUPER:      {x: 60 for x in range(38)}.update({38:59, 39:57, 40:55, 41:54, 42:53, 43:52, 44:51, 45:50, 46:49, 47:47,
-                                                                            48:46, 49:45, 50:44, 51:43, 52:42, 53:42, 54:41, 55:40, 56:40, 57:39,
-                                                                            58:38, 59:38, 60:37, 61:36, 62:36, 63:35, 64:35, 65:34, 66:34, 67:33,
-                                                                            68:33, 69:32, 70:32, 71:31, 72:31, 73:30, 74:30, 75:29, 76:29, 77:28,
-                                                                            78:28, 79:28, 80:27, 81:27, 82:27, 83:26, 84:26, 85:26, 86:26, 87:25,
-                                                                            88:25, 89:25, 90:24, 91:24, 92:24, 93:24, 94:23, 95:23, 96:23, 97:22, 98:22, 99:22, 100:22}),
-                             SUPER_PLUS: {x: 60 for x in range(50)}.update({50:58, 51:56, 52:56, 53:54, 54:53, 55:52, 56:51, 57:50, 58:49, 59:48,
-                                                                            60:47, 61:46, 62:46, 63:45, 64:44, 65:43, 66:43, 67:42, 68:41, 69:40,
-                                                                            70:40, 71:39, 72:39, 73:38, 74:37, 75:37, 76:36, 77:36, 78:35, 79:35,
-                                                                            80:34, 81:34, 82:33, 83:33, 84:33, 85:32, 86:32, 87:31, 88:31, 89:30,
-                                                                            90:30, 91:30, 92:29, 93:29, 94:28, 95:28, 96:28, 97:27, 98:27, 99:27, 100:25})}}
-
-    # Minimum wait time (s) required for rTMS train
-    JOULES = {  0:  0.0,  1:  0.0,  2:  0.1,  3:  0.2,  4:  0.4,  5:  0.6,  6:  0.9,  7:  1.2,  8:  1.6,  9:  2.0, 
-               10:  2.5, 11:  3.0, 12:  3.6, 13:  4.3, 14:  4.9, 15:  5.7, 16:  6.4, 17:  7.3, 18:  8.2, 19:  9.1,
-               20: 10.1, 21: 11.1, 22: 12.2, 23: 13.3, 24: 14.5, 25: 15.7, 26: 17.0, 27: 18.4, 28: 19.7, 29: 21.2,
-               30: 22.7, 31: 24.2, 32: 25.8, 33: 27.4, 34: 29.1, 35: 30.8, 36: 32.6, 37: 34.5, 38: 36.4, 39: 38.3,
-               40: 40.3, 41: 42.3, 42: 44.4, 43: 46.6, 44: 48.8, 45: 51.0, 46: 53.3, 47: 55.6, 48: 58.0, 49: 60.5,
-               50: 63.0, 51: 65.5, 52: 68.1, 53: 70.7, 54: 73.4, 55: 76.2, 56: 79.0, 57: 81.8, 58: 84.7, 59: 87.7,
-               60: 90.7, 61: 93.7, 62: 96.8, 63:100.0, 64:103.2, 65:106.4, 66:109.7, 67:113.0, 68:116.4, 69:119.9,
-               70:123.4, 71:126.9, 72:130.5, 73:134.2, 74:137.9, 75:141.7, 76:145.5, 77:149.3, 78:153.2, 79:157.2,
-               80:161.2, 81:165.2, 82:169.3, 83:173.5, 84:177.7, 85:181.9, 86:186.3, 87:190.6, 88:195.0, 89:199.5,
-               90:204.0, 91:208.5, 92:213.1, 93:217.8, 94:222.5, 95:227.3, 96:232.1, 97:236.9, 98:241.9, 99:246.8,
-              100:252.0}
+    MAX_FREQUENCY = system_info['maxFrequency']
+    # Minimum wait time (s) required for rTMS train. Power:Joules per pulse
+    JOULES = system_info['joules']
 
     def getRapidMinWaitTime(power, nPulses, frequency):
+        """ Calculate minimum wait time between trains for given power, frequency, and number of pulses."""
         return max(0.5, (nPulses * ((frequency * Rapid.JOULES[power]) - 1050.0)) / (1050.0 * frequency))
 
     def getRapidMaxOnTime(power, frequency):
+        """ Calculate maximum train duration for given power and frequency. If greater than 60 seconds, will allow for continuous operation for up to 6000 pulses."""
         return 63000.0 / (frequency * Rapid.JOULES[power])
 
     def getRapidMaxContinuousOperationFrequency(power):
+        """ Calculate maximum frequency that will allow for continuous operation (up to 6000 pulses)."""
         return 1050.0 / Rapid.JOULES[power]
 
-    def __init__(self, serialConnection, superRapid=STANDARD, unlockCode=None, voltage=DEFAULT_VOLTAGE):
-        super(Rapid, self).__init__(serialConnection)
+    def __init__(self, serialConnection, superRapid=DEFAULT_RAPID_TYPE, unlockCode=DEFAULT_UNLOCK_CODE, voltage=DEFAULT_VOLTAGE, version=DEFAULT_VIRTUAL_VERSION):
         self._super = superRapid
         self._unlockCode = unlockCode
-        # If an unlock code has been supplied, then the Rapid requires a different command to stay in contact with.
-        if self._unlockCode is not None:
+        self._voltage = voltage
+        self._version = version if serialConnection.lower() == 'virtual' else (0,0,0)
+        super(Rapid, self).__init__(serialConnection)
+        # If an unlock code has been supplied, then the Rapid requires a different command to stay in contact with it.
+        if self._unlockCode:
             self._connectionCommand = ('x@G', None, 6)
             self._pokeCommand = 'x@'
             self._queryCommand = self.getSystemStatus
-        self._voltage = voltage
-        self._version = (0, 0, 0)
         self._parameterReturnBytes = None
         self._sequenceValidated = False
         self._repetitiveMode = False
 
-    def _setupSerialPort(self, address):
-        if address.lower() == 'virtual':
-            pass
+    def _setupSerialPort(self, serialConnection):
+        if serialConnection.lower() == 'virtual':
+            from virtual import virtualPortController
+            self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue,superRapid=self._super,unlockCode=self._unlockCode,voltage=self._voltage,version=self._version)
         else:
-            self._connection = serialPortController(address, self._sendQueue, self._receiveQueue)
+            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue)
 
     def getVersion(self):
         """ 
@@ -861,7 +839,7 @@ class Rapid(Magstim):
         """
         error, message = self._processCommand('ND', 'version', 8)
         #If we didn't receive an error, update the version number and the number of bytes that will be returned by a getParameters() command
-        if ~error:
+        if not error:
             self._version = message
             if self._version >= (9, 0, 0):
                 self._parameterReturnBytes = 24
@@ -913,7 +891,6 @@ class Rapid(Magstim):
         #Just some housekeeping before we call the base magstim class method disconnect
         self._sequenceValidated = False
         self._repetitiveMode = False
-        self.rTMSMode(False)
         return super(Rapid, self).disconnect()
 
     def rTMSMode(self, enable, receipt=False):
@@ -1015,6 +992,13 @@ class Rapid(Magstim):
             None
         """
         return self._processCommand('^@' if enable else '_@', 'instrRapid' if receipt else None, 4)
+
+    def isEnhanced(self):
+        """ 
+        Helper function that returns True if the Rapid is in enhanced power mode, False if not if it could not be determined.
+        """
+        error,parameters = self._queryCommand()
+        return bool(parameters['rapid']['enhancedPowerMode']) if not error else False
     
     def setFrequency(self, newFrequency, receipt=False):
         """ 
@@ -1037,11 +1021,19 @@ class Rapid(Magstim):
             None
         """
         self._sequenceValidated =  False
-        #Drop decimals from values greater than 30Hz
-        if newFrequency > 30:
-            newFrequency = floor(newFrequency)
-        #Then convert to tenths of a Hertz
-        newFrequency = floor(newFrequency * 10)
+
+        # Convert to tenths of a Hz
+        newFrequency = newFrequency * 10
+        # Make sure we have a valid frequency value
+        if newFrequency % 1:
+            return Magstim.PARAMETER_PRECISION_ERR
+        updateError,currentParameters = self.getParameters()
+        if updateError:
+            return Magstim.PARAMETER_ACQUISTION_ERR
+        else:
+            maxFrequency = Rapid.MAX_FREQUENCY[currentParameters['rapidParam']['power']]
+            if not (0 <= newFrequency <= maxFrequency):
+                return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
         error, message = self._processCommand('B' + str(int(newFrequency)).zfill(4), 'instrRapid', 4) 
@@ -1064,7 +1056,7 @@ class Rapid(Magstim):
         N.B. Changing the NPulses parameter will automatically update the Duration parameter (this cannot exceed 10 s) based on the current Frequency parameter setting.
         
         Args:
-        newNPulses (int): new number of pulses (Version 9+: 1-60000; Version 7+: ?; Version 5+: 1-1000)
+        newNPulses (int): new number of pulses (Version 9+: 1-6000; Version 7+: ?; Version 5+: 1-1000?)
         receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
@@ -1076,9 +1068,12 @@ class Rapid(Magstim):
             None
         """
         self._sequenceValidated =  False
-        #Make sure we have a valid number of pulses value
+
+        # Make sure we have a valid number of pulses value
         if newNPulses % 1:
             return Magstim.PARAMETER_FLOAT_ERR
+        if not (0 <= newNPulses <= 6000):
+            return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
         error, message = self._processCommand('D' + str(int(newNPulses)).zfill(5 if self._version >= (9, 0, 0) else 4), 'instrRapid', 4)
@@ -1101,7 +1096,7 @@ class Rapid(Magstim):
         N.B. Changing the Duration parameter will automatically update the NPulses parameter based on the current Frequency parameter setting.
         
         Args:
-        newDuration (int/float): new duration of pulse train in seconds (Version 9+: 1-600; Version 7+: ?; Version 5+: 1-10); decimal values are allowed for durations up to 30s
+        newDuration (int/float): new duration of pulse train in seconds (Version 9+: 1-600; Version 7+: ?; Version 5+: 1-10?); decimal values are allowed for durations up to 30s
         receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
@@ -1113,11 +1108,14 @@ class Rapid(Magstim):
             None
         """
         self._sequenceValidated =  False
-        #Drop decimals from values greater than 30s
-        if newDuration > 30:
-            newDuration = floor(newDuration)
-        #Then convert to tenths of a second
-        newDuration = floor(newDuration * 10)
+
+        # Convert to tenths of a second
+        newDuration = newDuration * 10
+        # Make sure we have a valid duration value
+        if newDuration % 1:
+            return Magstim.PARAMETER_PRECISION_ERR
+        elif not (0 <= newDuration <= (999 if self._version < (9,0,0) else 9999)):
+            return Magstim.PARAMETER_RANGE_ERR
 
         error, message = self._processCommand('[' + str(int(newDuration)).zfill(4 if self._version >= (9, 0, 0) else 3), 'instrRapid', 4)
         if not error:
@@ -1163,12 +1161,14 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        #Make sure we have a valid power value
+        self._sequenceValidated =  False
+
+        # Make sure we have a valid power value
         if newPower % 1:
             return Magstim.PARAMETER_FLOAT_ERR
-
-        self._sequenceValidated =  False
-        error, message = super(Rapid,self).setPower(**locals().update({'_commandByte':'@','receipt':True}))
+        elif not 0 <= newPower <= (110 if self.isEnhanced else 100):
+            return Magstim.PARAMETER_RANGE_ERR
+        error, message = super(Rapid,self).setPower(newPower,True,delay,'@')
         
         if not error:
             updateError, currentParameters = self.getParameters()
@@ -1203,6 +1203,8 @@ class Rapid(Magstim):
             return Magstim.GET_SYSTEM_STATUS_ERR
         elif self._version < (9, 0, 0):
             return Magstim.SYSTEM_STATUS_VERSION_ERR
+
+        self._sequenceValidated =  False
             
         #Make sure we have a valid delay duration value
         if newDelay % 1:
@@ -1245,7 +1247,7 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and self._sequenceValidated:
+        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and not self._sequenceValidated:
             return Magstim.SEQUENCE_VALIDATION_ERR
         else:
             return self._processCommand('EH', 'instr' if receipt else None, 3) if receipt else None
@@ -1254,7 +1256,7 @@ class Rapid(Magstim):
         """ 
         Trigger the stimulator to fire with very low latency using the RTS pin and a custom serial connection.
         """
-        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and self._sequenceValidated:
+        if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and not self._sequenceValidated:
             return Magstim.SEQUENCE_VALIDATION_ERR
         else:
             super(Rapid,self).quickFire()
@@ -1272,11 +1274,11 @@ class Rapid(Magstim):
         error,parameters = self.getParameters()
         if error:
             return Magstim.PARAMETER_ACQUISTION_ERR
-        if min(parameters['duration'], 60) > self._getRapidMaxOnTime(parameters['rapidParam']['power'], parameters['rapidParam']['frequency']):
+        elif min(parameters['duration'], 60) > Rapid.getRapidMaxOnTime(parameters['rapidParam']['power'], parameters['rapidParam']['frequency']):
             return Magstim.MAX_ON_TIME_ERR
         else:
             self._sequenceValidated = True
-            return (0, 'OK')
+            return (0, 'Seqeunce valid.')
 
     def getSystemStatus(self):
         """ 
