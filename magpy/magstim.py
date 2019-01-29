@@ -33,7 +33,7 @@ else:
 def calcCRC(command):
     """Return the CRC checksum for the command string."""
     # Convert command string to sum of ASCII values
-    commandSum = sum(bytearray(command,encoding='utf-8'))
+    commandSum = sum(bytearray(command,encoding='ascii'))
     # Convert command sum to binary, then invert and return 8-bit character value
     return chr(~commandSum & 0xff) 
 
@@ -403,7 +403,7 @@ class Magstim(object):
                         return Magstim.COMMAND_CONFLICT_ERR
                     elif reply[0] != commandString[0]:
                         return Magstim.INVALID_CONFIRMATION_ERR
-                    elif calcCRC(reply[0:-1]) != reply[-1]:
+                    elif calcCRC(reply[:-1]) != reply[-1]:
                         return Magstim.CRC_MISMATCH_ERR
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
