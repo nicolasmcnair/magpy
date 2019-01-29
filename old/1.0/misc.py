@@ -58,7 +58,7 @@ class serialPortController(multiprocessing.Process):
         if version_info>=(3,0):
             self.port.write_timeout = 0.3
             self.port.portFlush = self.port.reset_input_buffer
-            self.port.anyWaiting = self.port.in_waiting
+            self.port.anyWaiting = lambda:self.port.in_waiting
         else:
             self.port.writeTimeout=0.3            
             self.port.portFlush = self.port.flushInput
