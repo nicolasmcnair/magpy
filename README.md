@@ -34,3 +34,7 @@ magstim.disconnect()
 ```
 
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
+
+## Recent Updates
+30-01-19: Versions 1.2.0b1 and 1.1.2 should now be fully compatible with Python 3
+29-01-19: Fixed an error with attempting to call a serial port property ("TypeError: 'int' object is not callable")
