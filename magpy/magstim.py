@@ -30,12 +30,20 @@ else:
     defaultTimer = time
 
 # Calculate checksum for command
-def calcCRC(command):
-    """Return the CRC checksum for the command string."""
-    # Convert command string to sum of ASCII values
-    commandSum = sum(bytearray(command,encoding='ascii'))
-    # Convert command sum to binary, then invert and return 8-bit character value
-    return chr(~commandSum & 0xff) 
+if version_info >= (3,0):
+    def calcCRC(command):
+        """Return the CRC checksum for the command string."""
+        # Convert command string to sum of ASCII/byte values
+        commandSum = sum(command)
+        # Convert command sum to binary, then invert and return 8-bit character value
+        return bytearray(chr(~commandSum & 0xff),encoding='latin_1')
+else:
+    def calcCRC(command):
+        """Return the CRC checksum for the command string."""
+        # Convert command string to sum of ASCII/byte values
+        commandSum = sum(command)
+        # Convert command sum to binary, then invert and return 8-bit character value
+        return chr(~commandSum & 0xff)
 
 class MagstimError(Exception):
     pass
@@ -115,18 +123,18 @@ class serialPortController(Process):
                         # Read the first byte
                         message = self._port.read(1)
                         # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
-                        if message == 'N':
+                        if message == b'N':
                             while ord(message[-1]):
                                 message += self._port.read(1)
                             # After the end of the version number, read one more byte to grab the CRC
                             message += self._port.read(1)
                         # If the first byte is not '?', then the message was understood so carry on reading in the response (if it was a '?', then this will be the only returned byte).
-                        elif message != '?':
+                        elif message != b'?':
                             # Read the second byte
                             message += self._port.read(1)
                             # If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
                             # In these cases, just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
-                            message += self._port.read(readBytes - 2) if message[-1] not in {'S', '?'} else self._port.read(1)
+                            message += self._port.read(readBytes - 2) if message[-1] not in {b'S', b'?'} else self._port.read(1)
                         # Return the reply if we want it
                         if reply:
                             self._serialReadQueue.put([0, message])
@@ -242,7 +250,7 @@ class Magstim(object):
             magstimResponse = tuple(int(x) for x in ''.join(responseString[:-1]).strip())
         else:
             # Get ASCII code of first data character
-            temp = ord(responseString.pop(0))
+            temp = responseString.pop(0)
             # Interpret bits
             magstimResponse = {'instr':{'standby':      temp &   1,
                                         'armed':        (temp >> 1) & 1,
@@ -256,7 +264,7 @@ class Magstim(object):
         # If a Rapid system and response includes rTMS status     
         if responseType in {'instrRapid','rapidParam','systemRapid'}:
             # Get ASCII code of second data character        
-            temp = ord(responseString.pop(0))
+            temp = responseString.pop(0)
             # Interpret bits
             magstimResponse['rapid'] = {'enhancedPowerMode':      temp & 1,
                                         'train':                 (temp >> 1) & 1,
@@ -269,31 +277,31 @@ class Magstim(object):
     
         # If requesting parameter settings or coil temperature
         if responseType == 'bistimParam':
-            magstimResponse['bistimParam'] = {'powerA':   int(''.join(responseString[0:3])),
-                                              'powerB':   int(''.join(responseString[3:6])),
-                                              'ppOffset': int(''.join(responseString[6:9]))}
+            magstimResponse['bistimParam'] = {'powerA':   int(''.join(chr(x) for x in responseString[0:3])),
+                                              'powerB':   int(''.join(chr(x) for x in responseString[3:6])),
+                                              'ppOffset': int(''.join(chr(x) for x in responseString[6:9]))}
     
         elif responseType == 'magstimParam':
-            magstimResponse['magstimParam'] = {'power': int(''.join(responseString[0:3]))}
+            magstimResponse['magstimParam'] = {'power': int(''.join(chr(x) for x in responseString[:3]))}
     
         elif responseType in 'rapidParam':
             # This is a bit of a hack to determine which software version we're dealing with
             if len(responseString) == 20:
-                magstimResponse['rapidParam'] = {'power':     int(''.join(responseString[0:3])),
-                                                 'frequency': int(''.join(responseString[3:7])) / 10.0,
-                                                 'nPulses':   int(''.join(responseString[7:12])),
-                                                 'duration':  int(''.join(responseString[12:16])) / 10.0,
-                                                 'wait':      int(''.join(responseString[16:])) / 10.0}
+                magstimResponse['rapidParam'] = {'power':     int(''.join(chr(x) for x in responseString[0:3])),
+                                                 'frequency': int(''.join(chr(x) for x in responseString[3:7])) / 10.0,
+                                                 'nPulses':   int(''.join(chr(x) for x in responseString[7:12])),
+                                                 'duration':  int(''.join(chr(x) for x in responseString[12:16])) / 10.0,
+                                                 'wait':      int(''.join(chr(x) for x in responseString[16:])) / 10.0}
             else:
-                magstimResponse['rapidParam'] = {'power':     int(''.join(responseString[0:3])),
-                                                 'frequency': int(''.join(responseString[3:7])) / 10.0,
-                                                 'nPulses':   int(''.join(responseString[7:11])),
-                                                 'duration':  int(''.join(responseString[11:14])) / 10.0,
-                                                 'wait':      int(''.join(responseString[14:])) / 10.0}
+                magstimResponse['rapidParam'] = {'power':     int(''.join(chr(x) for x in responseString[0:3])),
+                                                 'frequency': int(''.join(chr(x) for x in responseString[3:7])) / 10.0,
+                                                 'nPulses':   int(''.join(chr(x) for x in responseString[7:11])),
+                                                 'duration':  int(''.join(chr(x) for x in responseString[11:14])) / 10.0,
+                                                 'wait':      int(''.join(chr(x) for x in responseString[14:])) / 10.0}
     
         elif responseType == 'magstimTemp':
-            magstimResponse['magstimTemp'] = {'coil1Temp': int(''.join(responseString[0:3])) / 10.0,
-                                              'coil2Temp': int(''.join(responseString[3:6])) / 10.0}
+            magstimResponse['magstimTemp'] = {'coil1Temp': int(''.join(chr(x) for x in responseString[0:3])) / 10.0,
+                                              'coil2Temp': int(''.join(chr(x) for x in responseString[3:6])) / 10.0}
 
         elif responseType == 'systemRapid':
             temp = ord(responseString.pop(0))
@@ -302,10 +310,10 @@ class Magstim(object):
                                            'chargeDelaySet':           (temp >> 2) & 1}
 
         elif responseType == 'error':
-            magstimResponse['currentErrorCode'] = responseString[:-1]
+            magstimResponse['currentErrorCode'] = ''.join(chr(x) for x in responseString[:-1])
 
         elif responseType == 'instrCharge':
-             magstimResponse['chargeDelay'] = int(''.join(responseString)) * 10 #  Not sure if this should be multiplied by 10 as documentation is conflicting
+             magstimResponse['chargeDelay'] = int(''.join(chr(x) for x in responseString)) * 10 #  Not sure if this should be multiplied by 10 as documentation is conflicting
              
         return magstimResponse
 
@@ -318,8 +326,8 @@ class Magstim(object):
         self._robot = connectionRobot(self._sendQueue, self._robotQueue)
         self._robot.daemon = True
         self._connected = False
-        self._connectionCommand = ('Q@n', None, 3)
-        self._pokeCommand = 'Qn'
+        self._connectionCommand = (b'Q@n', None, 3)
+        self._pokeCommand = b'Q@'
         self._queryCommand = partial(self.remoteControl, enable=True, receipt=True)
         
     def _setupSerialPort(self, serialConnection):
@@ -381,35 +389,39 @@ class Magstim(object):
         If receiptType argument is None:
             None
         """
+        # Unify Python 2 and 3 strings
+        commandString = bytearray(commandString)
         # Only process command if toggling remote control, querying parameters, or disarming, or otherwise only if connected to the Magstim
         # N.B. For Rapid stimulators, we first need to have established what version number we are (which sets _parameterReturnBytes) before we can query parameters
-        if self._connected or (commandString[0] in {'Q', 'R', 'J', 'F'}) or commandString == 'EA' or (commandString[0] == '\\' and self._parameterReturnBytes is not None):
+        if self._connected or (commandString[0] in {81, 82, 74, 70}) or commandString == b'EA' or (commandString[0] == 92 and self._parameterReturnBytes is not None):
             # Put command in the send queue to the serial port controller along with what kind of reply is requested and how many bytes to read back from the Magstim
-            self._sendQueue.put((commandString + calcCRC(commandString), receiptType, readBytes))
+            self._sendQueue.put((bytes(commandString + calcCRC(commandString)), receiptType, readBytes))
             # If expecting a response, start inspecting the receive queue back from the serial port controller
             if receiptType is not None:
                 error, reply = self._receiveQueue.get()
+                # Unify bytestring for Python 2 and 3
+                reply = bytearray(reply)
                 # If error is true, that means we either couldn't send the command or didn't get anything back from the Magstim
                 if error:
                     return (error, reply)
                 # If we did get something back from the Magstim, parse the message and the return it
                 else:
                     # Check for error messages (error codes 1 and 2 are serial port write/read errors; 8 (below) is for not having established remote control)
-                    if reply[0] == '?':
+                    if reply[0] == 63:
                         return Magstim.INVALID_COMMAND_ERR
-                    elif reply[1] == '?':
+                    elif reply[1] == 63:
                         return Magstim.INVALID_DATA_ERR
-                    elif reply[1] == 'S':
+                    elif reply[1] == 83:
                         return Magstim.COMMAND_CONFLICT_ERR
                     elif reply[0] != commandString[0]:
                         return Magstim.INVALID_CONFIRMATION_ERR
-                    elif calcCRC(reply[:-1]) != reply[-1]:
+                    elif ord(calcCRC(reply[:-1])) != reply[-1]:
                         return Magstim.CRC_MISMATCH_ERR
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
-                if commandString[0] == 'R' or commandString[:2] == 'EA':
+                if commandString[0] == 82 or commandString[:2] == b'EA':
                     self._robotQueue.put(-1)
-                elif commandString[:2] == 'EB':
+                elif commandString[:2] == b'EB':
                     self._robotQueue.put(1)
                 else:
                     self._robotQueue.put(0)
@@ -434,7 +446,7 @@ class Magstim(object):
         If receipt argument is False:
             None
         """
-        return self._processCommand('Q@' if enable else 'R@', 'instr' if receipt else None, 3)
+        return self._processCommand(b'Q@' if enable else b'R@', 'instr' if receipt else None, 3)
     
     def getParameters(self):
         """ 
@@ -445,9 +457,9 @@ class Magstim(object):
             error (int): error code (0 = no error; 1+ = error)
             message (dict,str): if error is 0 (False) returns a dict containing Magstim instrument status ['instr'] and parameter setting ['magstimParam'] dicts, otherwise returns an error string         
         """
-        return self._processCommand('J@', 'magstimParam', 12)
+        return self._processCommand(b'J@', 'magstimParam', 12)
     
-    def setPower(self, newPower, receipt=False, delay=False, _commandByte='@'):
+    def setPower(self, newPower, receipt=False, delay=False, _commandByte=b'@'):
         """ 
         Set power level for Magstim.
         
@@ -481,11 +493,11 @@ class Magstim(object):
             else:
                 # Switch keys depending on whether we're returning for a BiStim
                 if self.__class__ == 'BiStim':
-                    priorPower = priorPower['bistimParam']['powerA'] if _commandByte == '@' else priorPower['bistimParam']['powerB']
+                    priorPower = priorPower['bistimParam']['powerA'] if _commandByte == b'@' else priorPower['bistimParam']['powerB']
                 else:
                     priorPower = priorPower['magstimParam']['power']
         
-        error, message = self._processCommand(_commandByte + str(int(newPower)).zfill(3), 'instr' if (receipt or delay) else None, 3)
+        error, message = self._processCommand(_commandByte + bytearray(str(newPower).zfill(3),encoding='ascii'), 'instr' if (receipt or delay) else None, 3)
         
         # If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
         if delay and not error:
@@ -512,7 +524,7 @@ class Magstim(object):
                 error (int): error code (0 = no error; 1+ = error)
                 message (dict,str): if error is 0 (False) returns a dict containing Magstim instrument status ['instr'] and coil temperature ['magstimTemp'] dicts, otherwise returns an error string
         """
-        return self._processCommand('F@', 'magstimTemp', 9)        
+        return self._processCommand(b'F@', 'magstimTemp', 9)        
     
     def poke(self, silent=False):
         """ 
@@ -551,7 +563,7 @@ class Magstim(object):
         If receipt argument is False:
             None
         """
-        error, message = self._processCommand('EB', 'instr' if receipt else None, 3)
+        error, message = self._processCommand(b'EB', 'instr' if receipt else None, 3)
         
         #Enforcing arming delay if requested
         if delay:
@@ -574,7 +586,7 @@ class Magstim(object):
         If receipt argument is False:
             None
         """
-        return self._processCommand('EA', 'instr' if receipt else None, 3)
+        return self._processCommand(b'EA', 'instr' if receipt else None, 3)
 
     def isArmed(self):
         """ 
@@ -614,7 +626,7 @@ class Magstim(object):
         If receipt argument is False:
             None
         """
-        return self._processCommand('EH', 'instr' if receipt else None, 3)
+        return self._processCommand(b'EH', 'instr' if receipt else None, 3)
     
     def resetQuickFire(self):
         """ 
@@ -661,7 +673,7 @@ class BiStim(Magstim):
         If receipt argument is False:
             None
         """
-        error,message = self._processCommand('Y@' if enable else 'Z@', 'instr' if receipt else None, 3)
+        error,message = self._processCommand(b'Y@' if enable else b'Z@', 'instr' if receipt else None, 3)
         if not error:
             self._highResolutionMode = enable
         return (error,message)
@@ -675,7 +687,7 @@ class BiStim(Magstim):
                 error (int): error code (0 = no error; 1+ = error)
                 message (dict,str): if error is 0 (False) returns a dict containing BiStim instrument status ['instr'] and parameter setting ['bistimParam'] dicts, otherwise returns an error string   
         """
-        (error,message) = self._processCommand('J@', 'bistimParam', 12)
+        (error,message) = self._processCommand(b'J@', 'bistimParam', 12)
         if not error and self._highResolutionMode:
             message['bistimParam']['ppOffset'] /= 10.0
         return (error,message)
@@ -702,7 +714,7 @@ class BiStim(Magstim):
             None
         """
         #This is just an alias for the base magstim class method setPower
-        return super(BiStim, self).setPower(newPower, receipt=receipt, delay=delay, _commandByte='@')
+        return super(BiStim, self).setPower(newPower, receipt=receipt, delay=delay, _commandByte=b'@')
     
     def setPowerB(self, newPower, receipt=False, delay=False):
         """ 
@@ -726,7 +738,7 @@ class BiStim(Magstim):
             None
         """
         #This is just an alias for the base magstim class method setPower
-        return super(BiStim, self).setPower(newPower, receipt=receipt, delay=delay, _commandByte='A')
+        return super(BiStim, self).setPower(newPower, receipt=receipt, delay=delay, _commandByte=b'A')
     
     def setPulseInterval(self, newInterval, receipt=False):
         """ 
@@ -753,7 +765,7 @@ class BiStim(Magstim):
         elif not (0 <= newInterval <= 999):
             return Magstim.PARAMETER_RANGE_ERR
 
-        return self._processCommand('C' + str(int(newInterval)).zfill(3), 'instr' if receipt else None, 3)
+        return self._processCommand(b'C' + bytearray(str(newInterval).zfill(3),encoding='ascii'), 'instr' if receipt else None, 3)
     
 class Rapid(Magstim):
     """
@@ -814,8 +826,8 @@ class Rapid(Magstim):
         super(Rapid, self).__init__(serialConnection)
         # If an unlock code has been supplied, then the Rapid requires a different command to stay in contact with it.
         if self._unlockCode:
-            self._connectionCommand = ('x@G', None, 6)
-            self._pokeCommand = 'x@'
+            self._connectionCommand = (b'x@G', None, 6)
+            self._pokeCommand = b'x@'
             self._queryCommand = self.getSystemStatus
         self._parameterReturnBytes = None
         self._sequenceValidated = False
@@ -837,7 +849,7 @@ class Rapid(Magstim):
             error (int): error code (0 = no error; 1+ = error)
             message (tuple): if error is 0 (False) returns a tuple containing the version number (in (Major,Minor,Patch) format), otherwise returns an error string
         """
-        error, message = self._processCommand('ND', 'version', 8)
+        error, message = self._processCommand(b'ND', 'version', 8)
         #If we didn't receive an error, update the version number and the number of bytes that will be returned by a getParameters() command
         if not error:
             self._version = message
@@ -858,7 +870,7 @@ class Rapid(Magstim):
             error (int): error code (0 = no error; 1+ = error)
             message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and current error code ['errorCode'] dicts, otherwise returns an error string
         """
-        return self._processCommand('I@', 'error', 6)
+        return self._processCommand(b'I@', 'error', 6)
 
     def connect(self, receipt=False):
         """ 
@@ -912,9 +924,9 @@ class Rapid(Magstim):
         self._sequenceValidated =  False
         # Durations of 1 or 0 are used to toggle repetitive mode on and off
         if self._version >= (9, 0, 0):
-            commandString = '[0010' if enable else '[0000'
+            commandString = b'[0010' if enable else b'[0000'
         else:
-            commandString = '[010' if enable else '[000'
+            commandString = b'[010' if enable else b'[000'
         error,message = self._processCommand(commandString, 'instrRapid', 4)
         if not error:
             if enable:
@@ -947,7 +959,7 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        return self._processCommand('b@', 'instrRapid' if receipt else None, 4)
+        return self._processCommand(b'b@', 'instrRapid' if receipt else None, 4)
 
     def remoteControl(self, enable, receipt=False):
         """ 
@@ -967,9 +979,9 @@ class Rapid(Magstim):
         """
         self._sequenceValidated = False
         if self._unlockCode:
-            return self._processCommand('Q' + self._unlockCode if enable else 'R@', 'instr' if receipt else None, 3)
+            return self._processCommand(b'Q' + self._unlockCode if enable else b'R@', 'instr' if receipt else None, 3)
         else:
-            return self._processCommand('Q@' if enable else 'R@', 'instr' if receipt else None, 3)
+            return self._processCommand(b'Q@' if enable else b'R@', 'instr' if receipt else None, 3)
     
     def enhancedPowerMode(self, enable, receipt=False):    
         """ 
@@ -991,7 +1003,7 @@ class Rapid(Magstim):
         If receipt argument is False:
             None
         """
-        return self._processCommand('^@' if enable else '_@', 'instrRapid' if receipt else None, 4)
+        return self._processCommand(b'^@' if enable else b'_@', 'instrRapid' if receipt else None, 4)
 
     def isEnhanced(self):
         """ 
@@ -1036,12 +1048,12 @@ class Rapid(Magstim):
                 return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
-        error, message = self._processCommand('B' + str(int(newFrequency)).zfill(4), 'instrRapid', 4) 
+        error, message = self._processCommand(b'B' + bytearray(str(newFrequency).zfill(4),encoding='ascii'), 'instrRapid', 4) 
         #If we didn't get an error, update the other parameters accordingly
         if not error:
             updateError,currentParameters = self.getParameters()
             if not updateError:
-                updateError,currentParameters = self._processCommand('D' + str(int(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency']))).zfill(5 if self._version >= (9, 0, 0) else 4), 'instrRapid', 4)
+                updateError,currentParameters = self._processCommand(b'D' + bytearray(str(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1076,12 +1088,12 @@ class Rapid(Magstim):
             return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
-        error, message = self._processCommand('D' + str(int(newNPulses)).zfill(5 if self._version >= (9, 0, 0) else 4), 'instrRapid', 4)
+        error, message = self._processCommand(b'D' + bytearray(str(newNPulses).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
         #If we didn't get an error, update the other parameters accordingly
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand('[' + str(int((currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']))).zfill(4 if self._version >= (9, 0, 0) else 3), 'instrRapid' if receipt else None, 4)
+                updateError, currentParameters = self._processCommand(b'[' + bytearray(str(currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid' if receipt else None, 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1117,11 +1129,11 @@ class Rapid(Magstim):
         elif not (0 <= newDuration <= (999 if self._version < (9,0,0) else 9999)):
             return Magstim.PARAMETER_RANGE_ERR
 
-        error, message = self._processCommand('[' + str(int(newDuration)).zfill(4 if self._version >= (9, 0, 0) else 3), 'instrRapid', 4)
+        error, message = self._processCommand(b'[' + bytearray(str(newDuration).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid', 4)
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand('D' + str(int(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency']))).zfill(5 if self._version >= (9, 0, 0) else 4), 'instrRapid', 4)
+                updateError, currentParameters = self._processCommand(b'D' + bytearray(str(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1138,7 +1150,7 @@ class Rapid(Magstim):
             error (int): error code (0 = no error; 1+ = error)
             message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'], rMTS setting ['rapid'], and parameter setting ['rapidParam'] dicts, otherwise returns an error string
         """
-        return self._processCommand('\\@', 'rapidParam', self._parameterReturnBytes)
+        return self._processCommand(b'\\@', 'rapidParam', self._parameterReturnBytes)
     
     def setPower(self, newPower, receipt=False, delay=False):
         """ 
@@ -1168,7 +1180,7 @@ class Rapid(Magstim):
             return Magstim.PARAMETER_FLOAT_ERR
         elif not 0 <= newPower <= (110 if self.isEnhanced else 100):
             return Magstim.PARAMETER_RANGE_ERR
-        error, message = super(Rapid,self).setPower(newPower,True,delay,'@')
+        error, message = super(Rapid,self).setPower(newPower,True,delay,b'@')
         
         if not error:
             updateError, currentParameters = self.getParameters()
@@ -1210,7 +1222,7 @@ class Rapid(Magstim):
         if newDelay % 1:
             return Magstim.PARAMETER_FLOAT_ERR
 
-        error, message = self._processCommand('n' + str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4), 'instr', 3)
+        error, message = self._processCommand(b'n' + bytearray(str(newDelay).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'instr', 3)
         
         return (error,message) if receipt else None
 
@@ -1228,7 +1240,7 @@ class Rapid(Magstim):
         elif self._version < (9, 0, 0):
             return Magstim.SYSTEM_STATUS_VERSION_ERR
 
-        return self._processCommand('o@P', 'instrCharge', 7 if self._version > (9, 0, 0) else 6)
+        return self._processCommand(b'o@', 'instrCharge', 7 if self._version > (9, 0, 0) else 6)
 
     def fire(self, receipt=False):
         """ 
@@ -1250,7 +1262,7 @@ class Rapid(Magstim):
         if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and not self._sequenceValidated:
             return Magstim.SEQUENCE_VALIDATION_ERR
         else:
-            return self._processCommand('EH', 'instr' if receipt else None, 3) if receipt else None
+            return self.fire(receipt)
 
     def quickFire(self):
         """ 
@@ -1292,6 +1304,6 @@ class Rapid(Magstim):
         if self._version is None:
             return Magstim.GET_SYSTEM_STATUS_ERR
         elif self._version >= (9, 0, 0):
-            return self._processCommand('x@', 'systemRapid', 6)
+            return self._processCommand(b'x@', 'systemRapid', 6)
         else:
             return Magstim.SYSTEM_STATUS_VERSION_ERR
