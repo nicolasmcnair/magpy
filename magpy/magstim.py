@@ -121,7 +121,7 @@ class serialPortController(Process):
                     # Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
                     try:
                         # Read the first byte
-                        message = self._port.read(1)
+                        message = bytearray(self._port.read(1))
                         # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
                         if message == b'N':
                             while ord(message[-1]):
@@ -134,7 +134,7 @@ class serialPortController(Process):
                             message += self._port.read(1)
                             # If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
                             # In these cases, just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
-                            message += self._port.read(readBytes - 2) if message[-1] not in {b'S', b'?'} else self._port.read(1)
+                            message += self._port.read(readBytes - 2) if message[-1] not in {83, 63} else self._port.read(1)
                         # Return the reply if we want it
                         if reply:
                             self._serialReadQueue.put([0, message])
@@ -247,7 +247,7 @@ class Magstim(object):
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            magstimResponse = tuple(int(x) for x in ''.join(responseString[:-1]).strip())
+            magstimResponse = tuple(int(x) for x in ''.join(chr(x) for x in responseString[:-1]).strip())
         else:
             # Get ASCII code of first data character
             temp = responseString.pop(0)
@@ -304,7 +304,7 @@ class Magstim(object):
                                               'coil2Temp': int(''.join(chr(x) for x in responseString[3:6])) / 10.0}
 
         elif responseType == 'systemRapid':
-            temp = ord(responseString.pop(0))
+            temp = responseString.pop(0)
             magstimResponse['extInstr'] = {'plus1ModuleDetected':       temp & 1,
                                            'specialTriggerModeActive': (temp >> 1) & 1,
                                            'chargeDelaySet':           (temp >> 2) & 1}
@@ -399,8 +399,6 @@ class Magstim(object):
             # If expecting a response, start inspecting the receive queue back from the serial port controller
             if receiptType is not None:
                 error, reply = self._receiveQueue.get()
-                # Unify bytestring for Python 2 and 3
-                reply = bytearray(reply)
                 # If error is true, that means we either couldn't send the command or didn't get anything back from the Magstim
                 if error:
                     return (error, reply)
@@ -497,7 +495,7 @@ class Magstim(object):
                 else:
                     priorPower = priorPower['magstimParam']['power']
         
-        error, message = self._processCommand(_commandByte + bytearray(str(newPower).zfill(3),encoding='ascii'), 'instr' if (receipt or delay) else None, 3)
+        error, message = self._processCommand(_commandByte + bytearray(str(int(newPower)).zfill(3),encoding='ascii'), 'instr' if (receipt or delay) else None, 3)
         
         # If we're meant to delay (and we were able to change the power), then enforce if prior power settings are available
         if delay and not error:
@@ -765,7 +763,7 @@ class BiStim(Magstim):
         elif not (0 <= newInterval <= 999):
             return Magstim.PARAMETER_RANGE_ERR
 
-        return self._processCommand(b'C' + bytearray(str(newInterval).zfill(3),encoding='ascii'), 'instr' if receipt else None, 3)
+        return self._processCommand(b'C' + bytearray(str(int(newInterval)).zfill(3),encoding='ascii'), 'instr' if receipt else None, 3)
     
 class Rapid(Magstim):
     """
@@ -934,7 +932,7 @@ class Rapid(Magstim):
                 updateError,currentParameters = self.getParameters()
                 if not updateError:
                     if currentParameters['rapidParam']['frequency'] == 0:
-                        updateError,currentParameters = self._processCommand('B0010', 'instrRapid', 4)
+                        updateError,currentParameters = self._processCommand(b'B0010', 'instrRapid', 4)
                         if updateError:
                             return Magstim.PARAMETER_UPDATE_ERR
                 else:
@@ -1048,12 +1046,12 @@ class Rapid(Magstim):
                 return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
-        error, message = self._processCommand(b'B' + bytearray(str(newFrequency).zfill(4),encoding='ascii'), 'instrRapid', 4) 
+        error, message = self._processCommand(b'B' + bytearray(str(int(newFrequency)).zfill(4),encoding='ascii'), 'instrRapid', 4) 
         #If we didn't get an error, update the other parameters accordingly
         if not error:
             updateError,currentParameters = self.getParameters()
             if not updateError:
-                updateError,currentParameters = self._processCommand(b'D' + bytearray(str(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+                updateError,currentParameters = self._processCommand(b'D' + bytearray(str(int(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1088,12 +1086,12 @@ class Rapid(Magstim):
             return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
-        error, message = self._processCommand(b'D' + bytearray(str(newNPulses).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+        error, message = self._processCommand(b'D' + bytearray(str(int(newNPulses)).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
         #If we didn't get an error, update the other parameters accordingly
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand(b'[' + bytearray(str(currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency']).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid' if receipt else None, 4)
+                updateError, currentParameters = self._processCommand(b'[' + bytearray(str(int(currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency'])).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid' if receipt else None, 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1129,11 +1127,11 @@ class Rapid(Magstim):
         elif not (0 <= newDuration <= (999 if self._version < (9,0,0) else 9999)):
             return Magstim.PARAMETER_RANGE_ERR
 
-        error, message = self._processCommand(b'[' + bytearray(str(newDuration).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid', 4)
+        error, message = self._processCommand(b'[' + bytearray(str(int(newDuration)).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid', 4)
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand(b'D' + bytearray(str(floor(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+                updateError, currentParameters = self._processCommand(b'D' + bytearray(str(int(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1222,7 +1220,7 @@ class Rapid(Magstim):
         if newDelay % 1:
             return Magstim.PARAMETER_FLOAT_ERR
 
-        error, message = self._processCommand(b'n' + bytearray(str(newDelay).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'instr', 3)
+        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'instr', 3)
         
         return (error,message) if receipt else None
 
