@@ -313,7 +313,7 @@ class Magstim(object):
             magstimResponse['currentErrorCode'] = ''.join(chr(x) for x in responseString[:-1])
 
         elif responseType == 'instrCharge':
-             magstimResponse['chargeDelay'] = int(''.join(chr(x) for x in responseString)) * 10 #  Not sure if this should be multiplied by 10 as documentation is conflicting
+             magstimResponse['chargeDelay'] = int(''.join(chr(x) for x in responseString))
              
         return magstimResponse
 
@@ -1220,7 +1220,7 @@ class Rapid(Magstim):
         if newDelay % 1:
             return Magstim.PARAMETER_FLOAT_ERR
 
-        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'instr', 3)
+        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
         
         return (error,message) if receipt else None
 
@@ -1238,7 +1238,7 @@ class Rapid(Magstim):
         elif self._version < (9, 0, 0):
             return Magstim.SYSTEM_STATUS_VERSION_ERR
 
-        return self._processCommand(b'o@', 'instrCharge', 7 if self._version > (9, 0, 0) else 6)
+        return self._processCommand(b'o@', 'instrCharge', 8 if self._version > (9, 0, 0) else 7)
 
     def fire(self, receipt=False):
         """ 
