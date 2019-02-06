@@ -35,6 +35,17 @@ magstim.disconnect()
 
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
 
+## Version Summary
+| MagPy Version  | Magstim Software Version | Python Version |
+|:--------------:|:------------------------:|:--------------:|
+| 1.0            |            <=6           |        2       |
+| 1.1            |            <=6           |        2       |
+| 1.1.1          |            <=8           |        2       |
+| 1.1.2          |            <=8           |      2 & 3     |
+| 1.2.0b1        |            <=10          |      2 & 3     |
+
+**Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
+
 ## Recent Updates
 06-02-19: After identifying an error in the official documentation, the rapid.getChargeDelay and rapid.setChargeDelay methods should now be working with version 1.2.0b1
 
