@@ -59,7 +59,7 @@ class serialPortController(Process):
         self._port.setRTS(False)
             
         #Set up version compatibility
-        if version_info >= (3 ,0):
+        if int(serial.VERSION.split('.')[0]) >= 3:
             self._port.write_timeout = 0.3
             self._port.portFlush = self._port.reset_input_buffer
             self._port.anyWaiting = lambda:self._port.in_waiting
