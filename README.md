@@ -47,6 +47,8 @@ magstim.disconnect()
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+11-02-19: Fixed bug with checking pyserial version (shouldn't have affected most people)
+
 06-02-19: After identifying an error in the official documentation, the rapid.getChargeDelay and rapid.setChargeDelay methods should now be working with version 1.2.0b1
 
 30-01-19: Versions 1.2.0b1 and 1.1.2 should now be fully compatible with Python 3
