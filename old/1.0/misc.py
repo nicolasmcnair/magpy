@@ -8,7 +8,7 @@ Miscellaneous magpy functions
 """
 import multiprocessing
 import serial
-from sys import version_info, platform
+from sys import platform
 #switch timer based on platform
 if platform == 'win32':
     # On Windows, use time.clock
@@ -55,7 +55,7 @@ class serialPortController(multiprocessing.Process):
         self.port.setRTS(False)
         
         #Set up version compatibility                       
-        if version_info>=(3,0):
+        if int(serial.VERSION.split('.')[0]) >= 3:
             self.port.write_timeout = 0.3
             self.port.portFlush = self.port.reset_input_buffer
             self.port.anyWaiting = lambda:self.port.in_waiting
