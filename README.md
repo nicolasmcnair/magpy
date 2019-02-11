@@ -22,13 +22,11 @@ Example:
 
 ```python
 from magpy import magstim
-from time import sleep
 
 myMagstim = magstim.Magstim(address='COM1')
 myMagstim.connect()
 errorCode,parameterInfo = myMagstim.getParameters()
-myMagstim.arm()
-sleep(2.0) # wait for magstim to arm
+myMagstim.arm(delay=True)
 myMagstim.fire()
 myMagstim.disconnect()
 ```
