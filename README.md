@@ -21,16 +21,16 @@ Check the Wiki (https://github.com/nicolasmcnair/magpy/wiki) for details on how 
 Example:
 
 ```python
-from magpy import Magstim
+from magpy import magstim
 from time import sleep
 
-magstim = Magstim(address='COM1')
-magstim.connect()
-magstim_info = magstim.getParameters()
-magstim.arm()
+myMagstim = magstim.Magstim(address='COM1')
+myMagstim.connect()
+errorCode,parameterInfo = myMagstim.getParameters()
+myMagstim.arm()
 sleep(2.0) # wait for magstim to arm
-magstim.fire()
-magstim.disconnect()
+myMagstim.fire()
+myMagstim.disconnect()
 ```
 
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
