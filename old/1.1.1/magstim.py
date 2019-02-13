@@ -698,7 +698,7 @@ class Rapid(Magstim):
         N.B. Changing the Duration parameter will automatically update the NPulses parameter based on the current Frequency parameter setting.
         
         Args:
-        newDuration (int/float): new duration of pulse train in seconds (Version 7+: ?; Version 5+: 1-10)
+        newDuration (int/float): new duration of pulse train in tenths of a second (Version 7+: ?; Version 5+: 1-10)
         receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
