@@ -977,7 +977,7 @@ class Rapid(Magstim):
         """
         self._sequenceValidated = False
         if self._unlockCode:
-            return self._processCommand(b'Q' + self._unlockCode if enable else b'R@', 'instr' if receipt else None, 3)
+            return self._processCommand(b'Q' + bytearray(self._unlockCode, encoding='latin_1') if enable else b'R@', 'instr' if receipt else None, 3)
         else:
             return self._processCommand(b'Q@' if enable else b'R@', 'instr' if receipt else None, 3)
     
