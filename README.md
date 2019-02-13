@@ -20,7 +20,7 @@ Alternatively, you can download the contents of the `magpy` folder and copy them
 
 Check the Wiki (https://github.com/nicolasmcnair/magpy/wiki) for details on how use MagPy.
 
-**For Rapid<sup>2</sup> stimulators, the unlock code should be supplied on its own (i.e., without the command character 'Q' or the CRC). See the commented out command in the example below.**
+**N.B. For Rapid<sup>2</sup> stimulators, the unlock code should be supplied on its own (i.e., without the command character 'Q' or the CRC). See the commented out command in the example below.**
 
 Example:
 
