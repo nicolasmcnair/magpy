@@ -4,6 +4,8 @@ A Python toolbox for controlling Magstim TMS stimulators via serial communicatio
 
 Previously, MagPy only supported Rapid Magstim stimulators with software version 8 or lower. The most recent version (1.2.0b1) is a work-in-progress to update MagPy to support software versions up to 10. There may be bugs!
 
+**Important Note: In versions prior to 1.2, all parameters must be supplied in their lowest unit of resolution. For BiStim<sup>2</sup> stimulators, this means that the interpulse interval should be supplied in ms if in normal mode, and tenths of a millisecond in high-resolution mode. For Rapid<sup>2</sup> stimulators, this means that frequency should be supplied in tenths of a Hz and duration in tenths of a second. From version 1.2 onwards, all units must be supplied in their base unit: ms for interpulse interval (regardless of mode), Hz for frequency, and seconds for duration. See the help description for each command for details about what unit it is expecting.**
+
 ## Installation
 
 MagPy can be installed easily using the pip package manager:
@@ -18,12 +20,15 @@ Alternatively, you can download the contents of the `magpy` folder and copy them
 
 Check the Wiki (https://github.com/nicolasmcnair/magpy/wiki) for details on how use MagPy.
 
+**For Rapid<sup>2</sup> stimulators, the unlock code should be supplied on its own (i.e., without the command character 'Q' or the CRC). See the commented out command in the example below.**
+
 Example:
 
 ```python
 from magpy import magstim
 
 myMagstim = magstim.Magstim(address='COM1')
+#myMagstim = magstim.Rapid(address='COM1', superRapid=1, unlockCode='xxxx-xxxxxxxx-xx')
 myMagstim.connect()
 errorCode,parameterInfo = myMagstim.getParameters()
 myMagstim.arm(delay=True)
@@ -40,11 +45,13 @@ myMagstim.disconnect()
 | 1.1            |            <=6           |        2       |
 | 1.1.1          |            <=8           |        2       |
 | 1.1.2          |            <=8           |      2 & 3     |
-| 1.2.0b1        |            <=10          |      2 & 3     |
+| 1.2.0b3        |            <=10          |      2 & 3     |
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+14-02-19: Fixed an issue if an unlock code is supplied as a unicode string
+
 11-02-19: Fixed bug with checking pyserial version (shouldn't have affected most people)
 
 06-02-19: After identifying an error in the official documentation, the rapid.getChargeDelay and rapid.setChargeDelay methods should now be working with version 1.2.0b1
