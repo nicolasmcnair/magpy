@@ -121,7 +121,7 @@ class serialPortController(Process):
                         message = bytearray(self._port.read(1))
                         # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
                         if message == b'N':
-                            while ord(message[-1]):
+                            while message[-1] > 0:
                                 message += self._port.read(1)
                             # After the end of the version number, read one more byte to grab the CRC
                             message += self._port.read(1)
@@ -135,9 +135,9 @@ class serialPortController(Process):
                         # Return the reply if we want it
                         if reply:
                             self._serialReadQueue.put([0, message])
-                    except:# serial.SerialException:
-                        self._serialReadQueue.put(serialPortController.MAGSTIM_READ_ERR)
-                except:# serial.SerialException:
+                    except: #serial.SerialException:
+                        self._serialReadQueue.put(serialPortController.SERIAL_READ_ERR)
+                except: #serial.SerialException:
                     self._serialReadQueue.put(serialPortController.SERIAL_WRITE_ERR)
         #If we get here, it's time to shutdown the serial port controller
         self._port.close()
@@ -257,7 +257,7 @@ class Magstim(object):
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            magstimResponse = tuple(int(x) for x in ''.join(chr(x) for x in responseString[:-1]).strip())
+            magstimResponse = tuple(int(x) for x in ''.join(chr(x) for x in responseString[:-1]).strip() if x.isdigit())
         else:
             # Get ASCII code of first data character
             temp = responseString.pop(0)
@@ -859,13 +859,13 @@ class Rapid(Magstim):
             error (int): error code (0 = no error; 1+ = error)
             message (tuple): if error is 0 (False) returns a tuple containing the version number (in (Major,Minor,Patch) format), otherwise returns an error string
         """
-        error, message = self._processCommand(b'ND', 'version', 8)
+        error, message = self._processCommand(b'ND', 'version', None)
         #If we didn't receive an error, update the version number and the number of bytes that will be returned by a getParameters() command
         if not error:
             self._version = message
-            if self._version >= (9, 0, 0):
+            if self._version >= (9,):
                 self._parameterReturnBytes = 24
-            elif self._version >= (7, 0, 0):
+            elif self._version >= (7,):
                 self._parameterReturnBytes = 22
             else:
                 self._parameterReturnBytes = 21
@@ -1272,7 +1272,7 @@ class Rapid(Magstim):
         if self._repetitiveMode and Rapid.ENFORCE_ENERGY_SAFETY and not self._sequenceValidated:
             return Magstim.SEQUENCE_VALIDATION_ERR
         else:
-            return self.fire(receipt)
+            return super(Rapid,self).fire(receipt)
 
     def quickFire(self):
         """ 
