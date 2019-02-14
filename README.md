@@ -45,7 +45,7 @@ myMagstim.disconnect()
 | 1.1            |            <=6           |        2       |
 | 1.1.1          |            <=8           |        2       |
 | 1.1.2          |            <=8           |      2 & 3     |
-| 1.2.0b3        |            <=10          |      2 & 3     |
+| 1.2.0b4        |            <=10          |      2 & 3     |
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
