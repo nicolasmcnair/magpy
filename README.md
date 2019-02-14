@@ -50,6 +50,8 @@ myMagstim.disconnect()
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+14-02-19: Fixed a potential issue where MagPy might lose remote control over the Magstim if left idle for too long while disarmed
+
 14-02-19: Fixed an issue if an unlock code is supplied as a unicode string
 
 11-02-19: Fixed bug with checking pyserial version (shouldn't have affected most people)
