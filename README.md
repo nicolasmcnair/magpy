@@ -52,11 +52,11 @@ myMagstim.disconnect()
 ## Recent Updates
 14-02-19: Fixed a potential issue where MagPy might lose remote control over the Magstim if left idle for too long while disarmed
 
-14-02-19: Fixed an issue if an unlock code is supplied as a unicode string
+14-02-19: Fixed an issue in version 1.2.0b if an unlock code is supplied as a unicode string
 
 11-02-19: Fixed bug with checking pyserial version (shouldn't have affected most people)
 
-06-02-19: After identifying an error in the official documentation, the rapid.getChargeDelay and rapid.setChargeDelay methods should now be working with version 1.2.0b1
+06-02-19: After identifying an error in the official documentation, the rapid.getChargeDelay and rapid.setChargeDelay methods should now be working with version 1.2.0b
 
 30-01-19: Versions 1.2.0b and 1.1.2 should now be fully compatible with Python 3
 
