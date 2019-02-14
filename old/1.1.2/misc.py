@@ -93,7 +93,7 @@ class serialPortController(Process):
                         message = bytearray(self._port.read(1))
                         #If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
                         if message == b'N':
-                            while ord(message[-1]):
+                            while message[-1] > 0:
                                 message += self._port.read(1)
                             #After the end of the version number, read one more byte to grab the CRC
                             message += self._port.read(1)
@@ -208,7 +208,7 @@ else:
 def parseMagstimResponse(responseString, responseType):
     """Interprets responses sent from the Magstim unit."""
     if responseType == 'version':
-        magstimResponse = tuple(int(x) for x in ''.join(chr(x) for x in responseString[:-1]).strip())
+		magstimResponse = tuple(int(x) for x in ''.join(chr(x) for x in responseString[:-1]).strip() if x.isdigit())
     else:
         #Get ASCII code of first data character
         temp = responseString.pop(0)
