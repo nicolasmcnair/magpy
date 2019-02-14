@@ -135,42 +135,55 @@ class connectionRobot(Process):
         
     def run(self):
         """
-        Continuously send commands to the serialPortController process every 500ms, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed, paused, or stopped.
+        Continuously send commands to the serialPortController process at regular intervals, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed, paused, or stopped.
         
         N.B. This should be called via start() from the parent Python process.
         """
-        #This sends an "enable remote control" command to the serial port controller every 500ms; only runs once the stimulator is armed
+        # This sends an "enable remote control" command to the serial port controller every 500ms (if armed) or 5000 ms (if disarmed); only runs once the stimulator is armed
+        pokeLatency = 5
         while True:
-            #If the robot is currently paused, wait until we get a None (stop) or a 1 (start/resume) in the queue
+            # If the robot is currently paused, wait until we get a None (stop) or a non-negative number (start/resume) in the queue
             while self._paused:
                 message = self._updateRobotQueue.get()
                 if message is None:
                     self._stopped = True
                     self._paused = False
-                elif message == 1:
+                elif message >= 0:
+                    # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
+                    if message == 2:
+                        pokeLatency = 0.5
+                    # If message is a 1, that means we've just disarmed so slow down the poke latency
+                    elif message == 1:
+                        pokeLatency = 5
                     self._paused = False
-            #Check if we're stopping the robot
+            # Check if we're stopping the robot
             if self._stopped:
                 break
-            #Update next poll time to 500 ms
-            self._nextPokeTime = defaultTimer() + 0.5
-            #While waiting for next poll...
+            # Update next poll time to the next poke latency
+            self._nextPokeTime = defaultTimer() + pokeLatency
+            # While waiting for next poll...
             while defaultTimer() < self._nextPokeTime:
-                #...check to see if there has been an update send from the parent magstim object
+                # ...check to see if there has been an update send from the parent magstim object
                 if not self._updateRobotQueue.empty():
                     message = self._updateRobotQueue.get()
-                    #If the message is None this signals the process to stop
+                    # If the message is None this signals the process to stop
                     if message is None:
                         self._stopped = True
                         break
-                    #If the message is -1, this signals the process to pause
+                    # If the message is -1, we've relinquished remote control so signal the process to pause
                     elif message == -1:
                         self._paused = True
                         break
-                    #Any other message is signals a command has been sent to the serial port controller, so bump the next poke time by 500ms
+                    # Any other message signals a command has been sent to the serial port controller
                     else:
-                        self._nextPokeTime = defaultTimer() + 0.5
-            #If we made it all the way to the next poll time, send a poll to the port controller
+                        # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
+                        if message == 2:
+                            pokeLatency = 0.5
+                        # If message is a 1, that means we've just disarmed so slow down the poke latency
+                        elif message == 1:
+                            pokeLatency = 5
+                        self._nextPokeTime = defaultTimer() + pokeLatency
+            # If we made it all the way to the next poll time, send a poll to the port controller
             else:
                 self._serialWriteQueue.put((b'Q@n',None,3))
         #If we get here, it's time to shutdown the robot

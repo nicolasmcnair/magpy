@@ -124,10 +124,12 @@ class Magstim(object):
                         return (7,'Message contents and CRC value do not match.')
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
-                if commandString[0] == 82 or commandString[:2] == b'EA':
+                if commandString[0] == 82:
                     self._robotQueue.put(-1)
-                elif commandString[:2] == b'EB':
+                elif commandString[:2] == b'EA':
                     self._robotQueue.put(1)
+                elif commandString[:2] == b'EB':
+                    self._robotQueue.put(2)
                 else:
                     self._robotQueue.put(0)
             #Then return the parsed response if requested
