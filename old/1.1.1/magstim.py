@@ -517,11 +517,11 @@ class Rapid(Magstim):
             error (int): error code (0 = no error; 1+ = error)
             message (tuple): if error is 0 (False) returns a tuple containing the version number (in (Major,Minor,Patch) format), otherwise returns an error string
         """
-        error, message = self._processCommand('ND', 'version', 8)
+        error, message = self._processCommand('ND', 'version', None)
         #If we didn't receive an error, update the version number and the number of bytes that will be returned by a getParameters() command
         if ~error:
             self._version = message
-            if self._version >= (7, 0, 0):
+            if self._version >= (7,):
                 self._parameterReturnBytes = 22
             else:
                 self._parameterReturnBytes = 21
