@@ -45,7 +45,7 @@ myMagstim.disconnect()
 | 1.1            |            <=6           |        2       |
 | 1.1.1          |            <=8           |        2       |
 | 1.1.2          |            <=8           |      2 & 3     |
-| 1.2.0b4        |            <=10          |      2 & 3     |
+| 1.2.0b         |            <=10          |      2 & 3     |
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
@@ -58,6 +58,6 @@ myMagstim.disconnect()
 
 06-02-19: After identifying an error in the official documentation, the rapid.getChargeDelay and rapid.setChargeDelay methods should now be working with version 1.2.0b1
 
-30-01-19: Versions 1.2.0b1 and 1.1.2 should now be fully compatible with Python 3
+30-01-19: Versions 1.2.0b and 1.1.2 should now be fully compatible with Python 3
 
 29-01-19: Fixed an error with attempting to call a serial port property ("TypeError: 'int' object is not callable")
