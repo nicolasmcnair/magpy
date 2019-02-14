@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jan 07 2016
-Last Modified on Thu Nov 22 2018
-
 Code relating to controlling 200^2, BiStim^2, and Rapid^2 Magstim TMS units
 
 @author: Nicolas McNair
@@ -170,25 +167,32 @@ class connectionRobot(Process):
         
     def run(self):
         """
-        Continuously send commands to the serialPortController process every 500ms, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed, paused, or stopped.
+        Continuously send commands to the serialPortController process at regular intervals, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed, paused, or stopped.
         
         N.B. This should be called via start() from the parent Python process.
         """
-        # This sends an "enable remote control" command to the serial port controller every 500ms; only runs once the stimulator is armed
+        # This sends an "enable remote control" command to the serial port controller every 500ms (if armed) or 5000 ms (if disarmed); only runs once the stimulator is armed
+        pokeLatency = 5
         while True:
-            # If the robot is currently paused, wait until we get a None (stop) or a 1 (start/resume) in the queue
+            # If the robot is currently paused, wait until we get a None (stop) or a non-negative number (start/resume) in the queue
             while self._paused:
                 message = self._updateRobotQueue.get()
                 if message is None:
                     self._stopped = True
                     self._paused = False
-                elif message == 1:
+                elif message >= 0:
+                    # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
+                    if message == 2:
+                        pokeLatency = 0.5
+                    # If message is a 1, that means we've just disarmed so slow down the poke latency
+                    elif message == 1:
+                        pokeLatency = 5
                     self._paused = False
             # Check if we're stopping the robot
             if self._stopped:
                 break
-            # Update next poll time to 500 ms
-            self._nextPokeTime = defaultTimer() + 0.5
+            # Update next poll time to the next poke latency
+            self._nextPokeTime = defaultTimer() + pokeLatency
             # While waiting for next poll...
             while defaultTimer() < self._nextPokeTime:
                 # ...check to see if there has been an update send from the parent magstim object
@@ -198,13 +202,19 @@ class connectionRobot(Process):
                     if message is None:
                         self._stopped = True
                         break
-                    # If the message is -1, this signals the process to pause
+                    # If the message is -1, we've relinquished remote control so signal the process to pause
                     elif message == -1:
                         self._paused = True
                         break
-                    # Any other message is signals a command has been sent to the serial port controller, so bump the next poke time by 500ms
+                    # Any other message signals a command has been sent to the serial port controller
                     else:
-                        self._nextPokeTime = defaultTimer() + 0.5
+                        # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
+                        if message == 2:
+                            pokeLatency = 0.5
+                        # If message is a 1, that means we've just disarmed so slow down the poke latency
+                        elif message == 1:
+                            pokeLatency = 5
+                        self._nextPokeTime = defaultTimer() + pokeLatency
             # If we made it all the way to the next poll time, send a poll to the port controller
             else:
                 self._serialWriteQueue.put(self._connectionCommand)
@@ -404,7 +414,7 @@ class Magstim(object):
                     return (error, reply)
                 # If we did get something back from the Magstim, parse the message and the return it
                 else:
-                    # Check for error messages (error codes 1 and 2 are serial port write/read errors; 8 (below) is for not having established remote control)
+                    # Check for error messages
                     if reply[0] == 63:
                         return Magstim.INVALID_COMMAND_ERR
                     elif reply[1] == 63:
@@ -417,10 +427,12 @@ class Magstim(object):
                         return Magstim.CRC_MISMATCH_ERR
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
-                if commandString[0] == 82 or commandString[:2] == b'EA':
+                if commandString[0] == 82:
                     self._robotQueue.put(-1)
-                elif commandString[:2] == b'EB':
+                elif commandString[:2] == b'EA':
                     self._robotQueue.put(1)
+                elif commandString[:2] == b'EB':
+                    self._robotQueue.put(2)
                 else:
                     self._robotQueue.put(0)
             # Then return the parsed response if requested
@@ -977,7 +989,7 @@ class Rapid(Magstim):
         """
         self._sequenceValidated = False
         if self._unlockCode:
-            return self._processCommand(b'Q' + bytearray(self._unlockCode, encoding='latin_1') if enable else b'R@', 'instr' if receipt else None, 3)
+            return self._processCommand(b'Q' + bytearray(self._unlockCode,encoding='latin_1') if enable else b'R@', 'instr' if receipt else None, 3)
         else:
             return self._processCommand(b'Q@' if enable else b'R@', 'instr' if receipt else None, 3)
     
