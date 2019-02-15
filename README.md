@@ -50,9 +50,13 @@ myMagstim.disconnect()
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
-14-02-19: Fixed a potential issue where MagPy might lose remote control over the Magstim if left idle for too long while disarmed
+15-02-19: Fixed bug in version 1.2.0b in which the rapid.fire() method accidentally called itself (causing a recursion) rather than calling the parent method
 
-14-02-19: Fixed an issue in version 1.2.0b if an unlock code is supplied as a unicode string
+15-02-19: Fixed bug in versions 1.1.2 and 1.2.0b where checking the version of the Magstim would cause an exception
+
+14-02-19: Fixed a potential bug where MagPy might lose remote control over the Magstim if left idle for too long while disarmed
+
+14-02-19: Fixed bug in version 1.2.0b if an unlock code is supplied as a unicode string
 
 11-02-19: Fixed bug with checking pyserial version (shouldn't have affected most people)
 
@@ -60,4 +64,4 @@ myMagstim.disconnect()
 
 30-01-19: Versions 1.2.0b and 1.1.2 should now be fully compatible with Python 3
 
-29-01-19: Fixed an error with attempting to call a serial port property ("TypeError: 'int' object is not callable")
+29-01-19: Fixed bug with attempting to call a serial port property ("TypeError: 'int' object is not callable")
