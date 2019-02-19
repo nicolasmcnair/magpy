@@ -27,13 +27,14 @@ Example:
 ```python
 from magpy import magstim
 
-myMagstim = magstim.Magstim(address='COM1')
-#myMagstim = magstim.Rapid(address='COM1', superRapid=1, unlockCode='xxxx-xxxxxxxx-xx')
-myMagstim.connect()
-errorCode,parameterInfo = myMagstim.getParameters()
-myMagstim.arm(delay=True)
-myMagstim.fire()
-myMagstim.disconnect()
+if __name__ == "__main__":
+    myMagstim = magstim.Magstim(address='COM1')
+    #myMagstim = magstim.Rapid(address='COM1', superRapid=1, unlockCode='xxxx-xxxxxxxx-xx')
+    myMagstim.connect()
+    errorCode,parameterInfo = myMagstim.getParameters()
+    myMagstim.arm(delay=True)
+    myMagstim.fire()
+    myMagstim.disconnect()
 ```
 
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
