@@ -599,11 +599,11 @@ class Rapid(Magstim):
         If receipt argument is True:
             :tuple:(error,message):
                 error (int): error code (0 = no error; 1+ = error)
-                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
-        return self._processCommand(b'b@', 'instrRapid' if receipt else None, 4)
+        return self._processCommand(b'b@', 'instr' if receipt else None, 3)
     
     def enhancedPowerMode(self, enable, receipt=False):    
         """ 
