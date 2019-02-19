@@ -27,7 +27,7 @@ else:
     defaultTimer = time
 
 # Calculate checksum for command
-if version_info >= (3,0):
+if version_info >= (3,):
     def calcCRC(command):
         """Return the CRC checksum for the command string."""
         # Convert command string to sum of ASCII/byte values
@@ -204,6 +204,7 @@ class connectionRobot(Process):
                         break
                     # If the message is -1, we've relinquished remote control so signal the process to pause
                     elif message == -1:
+                        pokeLatency = 5
                         self._paused = True
                         break
                     # Any other message signals a command has been sent to the serial port controller
@@ -257,7 +258,7 @@ class Magstim(object):
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            magstimResponse = tuple(int(x) for x in ''.join(chr(x) for x in responseString[:-1]).strip() if x.isdigit())
+            magstimResponse = tuple(int(x) for x in bytes(responseString[1:-1]).strip().split(b'.'))
         else:
             # Get ASCII code of first data character
             temp = responseString.pop(0)
@@ -446,7 +447,7 @@ class Magstim(object):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) control
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -477,7 +478,7 @@ class Magstim(object):
         
         Args:
         newPower (int): new power level (0-100)
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         delay (bool): enforce delay to allow Magstim time to change Power (defaults to False)
         _commandByte should not be changed by the user
         
@@ -562,7 +563,7 @@ class Magstim(object):
              If the unit does not fire for more than 1 min while armed, it will disarm
         
         Args:
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         delay (bool): enforce delay to allow Magstim time to arm (defaults to False)
         
         Returns:
@@ -586,7 +587,7 @@ class Magstim(object):
         Disarm the stimulator.
         
         Args:
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -626,7 +627,7 @@ class Magstim(object):
         N.B. Will only succeed if previously armed.
         
         Args:
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -673,7 +674,7 @@ class BiStim(Magstim):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) high-resolution mode
-        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the BiStim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -712,7 +713,7 @@ class BiStim(Magstim):
         
         Args:
         newPower (int): new power level (0-100)
-        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the BiStim unit (defaults to False)
         delay (bool): enforce delay to allow BiStim time to change Power (defaults to False)
         
         Returns:
@@ -736,7 +737,7 @@ class BiStim(Magstim):
         
         Args:
         newPower (int): new power level (0-100)
-        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the BiStim unit (defaults to False)
         delay (bool): enforce delay to allow BiStim time to change Power (defaults to False)
         
         Returns:
@@ -756,7 +757,7 @@ class BiStim(Magstim):
         
         Args:
         newInterval (int/float): new interpulse interval in milliseconds (Range low-resolution mode: 0-999; Range high-resolution mode: 0-99.9)
-        receipt (bool): whether to return occurence of an error and the automated response from the BiStim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the BiStim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -890,7 +891,7 @@ class Rapid(Magstim):
         It also collects the software version number of the Rapid in order to send the correct command for obtaining parameter settings.
 
         Args:
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
 
         Returns:
         :tuple:(error,message):
@@ -921,7 +922,7 @@ class Rapid(Magstim):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) control
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -959,17 +960,17 @@ class Rapid(Magstim):
         This allows the stimulator to ignore the state of coil safety interlock switch.
         
         Args:
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
             :tuple:(error,message):
                 error (int): error code (0 = no error; 1+ = error)
-                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] and rMTS setting ['rapid'] dicts, otherwise returns an error string
+                message (dict,str): if error is 0 (False) returns a dict containing Rapid instrument status ['instr'] dict, otherwise returns an error string
         If receipt argument is False:
             None
         """
-        return self._processCommand(b'b@', 'instrRapid' if receipt else None, 4)
+        return self._processCommand(b'b@', 'instr' if receipt else None, 3)
 
     def remoteControl(self, enable, receipt=False):
         """ 
@@ -977,7 +978,7 @@ class Rapid(Magstim):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) control
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -1003,7 +1004,7 @@ class Rapid(Magstim):
         
         Args:
         enable (bool): whether to enable (True) or disable (False) enhanced-power mode
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -1032,7 +1033,7 @@ class Rapid(Magstim):
         
         Args:
         newFrequency (int/float): new frequency of pulse train in Hertz (0-100 for 240V systems, 0-60 for 115V systems); decimal values are allowed for frequencies up to 30Hz
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -1079,7 +1080,7 @@ class Rapid(Magstim):
         
         Args:
         newNPulses (int): new number of pulses (Version 9+: 1-6000; Version 7+: ?; Version 5+: 1-1000?)
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -1119,7 +1120,7 @@ class Rapid(Magstim):
         
         Args:
         newDuration (int/float): new duration of pulse train in seconds (Version 9+: 1-600; Version 7+: ?; Version 5+: 1-10?); decimal values are allowed for durations up to 30s
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -1172,7 +1173,7 @@ class Rapid(Magstim):
         
         Args:
         newPower (int): new power level (0-100; or 0-110 if enhanced-power mode is enabled)
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         delay (bool): enforce delay to allow Rapid time to change Power (defaults to False)
         
         Returns:
@@ -1190,18 +1191,18 @@ class Rapid(Magstim):
             return Magstim.PARAMETER_FLOAT_ERR
         elif not 0 <= newPower <= (110 if self.isEnhanced else 100):
             return Magstim.PARAMETER_RANGE_ERR
-        error, message = super(Rapid,self).setPower(newPower,True,delay,b'@')
         
+        error, message = super(Rapid,self).setPower(newPower,True,delay,b'@')
         if not error:
             updateError, currentParameters = self.getParameters()
-            if not currentParameters['rapid']['singlePulseMode']:
-                if not updateError:
+            if not updateError:
+                if not currentParameters['rapid']['singlePulseMode']:
                     maxFrequency = Rapid.MAX_FREQUENCY[self._voltage][self._super][currentParameters['rapidParam']['power']]
                     if currentParameters['rapidParam']['frequency'] > maxFrequency:
                         if not self.setFreqeuncy(maxFrequency)[0]:
                             return Magstim.PARAMETER_UPDATE_ERR
-                else:
-                    return Magstim.PARAMETER_ACQUISTION_ERR
+            else:
+                return Magstim.PARAMETER_ACQUISTION_ERR
         
         return (error,message) if receipt else None
 
@@ -1211,7 +1212,7 @@ class Rapid(Magstim):
         
         Args:
         newDelay (int): new delay duration in seconds (Version 10+: 1-10000; Version 9: 1-2000)
-        receipt (bool): whether to return occurence of an error and the automated response from the Rapid unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Rapid unit (defaults to False)
         
         Returns:
         If receipt argument is True:
@@ -1259,7 +1260,7 @@ class Rapid(Magstim):
         N.B. Will only succeed if previously armed.
         
         Args:
-        receipt (bool): whether to return occurence of an error and the automated response from the Magstim unit (defaults to False)
+        receipt (bool): whether to return occurrence of an error and the automated response from the Magstim unit (defaults to False)
         
         Returns:
         If receipt argument is True:
