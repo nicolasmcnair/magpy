@@ -46,7 +46,7 @@ if __name__ == "__main__":
 | 1.1            |            <=6           |        2       |
 | 1.1.1          |            <=8           |        2       |
 | 1.1.2          |            <=8           |      2 & 3     |
-| 1.2.0b         |            <=10          |      2 & 3     |
+| 1.2.0b         |            <=11          |      2 & 3     |
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
