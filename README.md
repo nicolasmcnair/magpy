@@ -2,7 +2,7 @@
 
 A Python toolbox for controlling Magstim TMS stimulators via serial communication.
 
-Previously, MagPy only supported Rapid Magstim stimulators with software version 8 or lower. The most recent version (1.2.0b1) is a work-in-progress to update MagPy to support software versions up to 10. There may be bugs!
+Previously, MagPy only supported Rapid Magstim stimulators with software version 8 or lower. The most recent version (1.2.0b1) is a work-in-progress to update MagPy to support software versions up to 11. There may be bugs!
 
 **Important Note: In versions prior to 1.2, all parameters must be supplied in their lowest unit of resolution. For BiStim<sup>2</sup> stimulators, this means that the interpulse interval should be supplied in ms if in normal mode, and tenths of a millisecond in high-resolution mode. For Rapid<sup>2</sup> stimulators, this means that frequency should be supplied in tenths of a Hz and duration in tenths of a second. From version 1.2 onwards, all units must be supplied in their base unit: ms for interpulse interval (regardless of mode), Hz for frequency, and seconds for duration. See the help description for each command for details about what unit it is expecting.**
 
