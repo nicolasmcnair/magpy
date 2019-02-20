@@ -51,6 +51,8 @@ if __name__ == "__main__":
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+21-02-19: rapid.setChargeDelay() now returns the correct response from the Rapid for software versions 11+
+
 15-02-19: Fixed bug in version 1.2.0b in which the rapid.fire() method accidentally called itself (causing a recursion) rather than calling the parent method
 
 15-02-19: Fixed bug in versions 1.1.2 and 1.2.0b where checking the version of the Magstim would cause an exception
