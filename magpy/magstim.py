@@ -1233,7 +1233,7 @@ class Rapid(Magstim):
         if newDelay % 1:
             return Magstim.PARAMETER_FLOAT_ERR
 
-        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'systemRapid' if self._version >= (10, 0, 0) 'instrRapid', 6 if self._version >= (10, 0, 0) else 4)
         
         return (error,message) if receipt else None
 
