@@ -338,7 +338,6 @@ class Magstim(object):
         self._robot.daemon = True
         self._connected = False
         self._connectionCommand = (b'Q@n', None, 3)
-        self._pokeCommand = b'Q@'
         self._queryCommand = partial(self.remoteControl, enable=True, receipt=True)
         
     def _setupSerialPort(self, serialConnection):
@@ -550,7 +549,7 @@ class Magstim(object):
         if silent and self._connected:
             self._robotQueue.put(0)
         else:
-            self._processCommand(self._pokeCommand, None, 3)
+            self._processCommand(*self._connectionCommand)
             
     def arm(self, receipt=False, delay=False):
         """ 
@@ -838,7 +837,6 @@ class Rapid(Magstim):
         # If an unlock code has been supplied, then the Rapid requires a different command to stay in contact with it.
         if self._unlockCode:
             self._connectionCommand = (b'x@G', None, 6)
-            self._pokeCommand = b'x@'
             self._queryCommand = self.getSystemStatus
         self._parameterReturnBytes = None
         self._sequenceValidated = False
