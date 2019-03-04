@@ -51,6 +51,8 @@ if __name__ == "__main__":
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+04-03-19: Fixed error in poke() command for stimulators with software version 9+
+
 22-02-19: Missing 'else' statement on line 1236 causing import failure
 
 21-02-19: rapid.setChargeDelay() now returns the correct response from the Rapid for software versions 11+
