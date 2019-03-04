@@ -258,7 +258,7 @@ class Magstim(object):
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            magstimResponse = tuple(int(x) for x in bytes(responseString[1:-1]).strip().split(b'.'))
+            magstimResponse = tuple(int(x) for x in bytes(responseString[1:-1]).strip().split(b'.') if x.isdigit())
         else:
             # Get ASCII code of first data character
             temp = responseString.pop(0)
