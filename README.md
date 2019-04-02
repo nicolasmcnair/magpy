@@ -51,6 +51,12 @@ if __name__ == "__main__":
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+02-04-19: MagPy should now be able to be installed directly from githb via pip
+
+02-04-19: Fixed a bug in checking the class of the stimulator during setPower()
+
+02-04-19: Fixed a bug when updating frequency after changing stimulator intensity for Rapid<sup>2</sup> machines
+
 04-03-19: Fixed a bug when parsing the returned software version number from a Rapid<sup>2</sup>
 
 04-03-19: Fixed error in poke() command for stimulators with software version 9+
