@@ -502,7 +502,7 @@ class Magstim(object):
                 return Magstim.PARAMETER_ACQUISTION_ERR
             else:
                 # Switch keys depending on whether we're returning for a BiStim
-                if isinstance(self, BiStim):
+                if type(self).__name__ == 'BiStim':
                     priorPower = priorPower['bistimParam']['powerA'] if _commandByte == b'@' else priorPower['bistimParam']['powerB']
                 else:
                     priorPower = priorPower['magstimParam']['power']
