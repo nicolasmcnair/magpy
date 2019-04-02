@@ -502,7 +502,7 @@ class Magstim(object):
                 return Magstim.PARAMETER_ACQUISTION_ERR
             else:
                 # Switch keys depending on whether we're returning for a BiStim
-                if self.__class__ == 'BiStim':
+                if isinstance(self, BiStim):
                     priorPower = priorPower['bistimParam']['powerA'] if _commandByte == b'@' else priorPower['bistimParam']['powerB']
                 else:
                     priorPower = priorPower['magstimParam']['power']
@@ -1197,7 +1197,7 @@ class Rapid(Magstim):
                 if not currentParameters['rapid']['singlePulseMode']:
                     maxFrequency = Rapid.MAX_FREQUENCY[self._voltage][self._super][currentParameters['rapidParam']['power']]
                     if currentParameters['rapidParam']['frequency'] > maxFrequency:
-                        if not self.setFreqeuncy(maxFrequency)[0]:
+                        if not self.setFrequency(maxFrequency)[0]:
                             return Magstim.PARAMETER_UPDATE_ERR
             else:
                 return Magstim.PARAMETER_ACQUISTION_ERR
