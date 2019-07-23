@@ -59,7 +59,7 @@ class serialPortController(Process):
     # Error codes
     SERIAL_WRITE_ERR = (1, 'SERIAL_WRITE_ERR: Could not send the command.')
     SERIAL_READ_ERR  = (2, 'SERIAL_READ_ERR:  Could not read the magstim response.')    
-    
+   
     def __init__(self, serialConnection, serialWriteQueue, serialReadQueue):
         Process.__init__(self)
         self._serialWriteQueue = serialWriteQueue
@@ -74,7 +74,6 @@ class serialPortController(Process):
         
         N.B. This should be called via start() from the parent Python process.
         """
-        
         # N.B. most of these settings are actually the default in PySerial, but just being careful.
         self._port = serial.Serial(port=self._address,
                                    baudrate=9600,
@@ -82,10 +81,8 @@ class serialPortController(Process):
                                    stopbits=serial.STOPBITS_ONE,
                                    parity=serial.PARITY_NONE,
                                    xonxoff=False)
-            
         # Make sure the RTS pin is set to off
         self._port.setRTS(False)
-            
         # Set up version compatibility
         if int(serial.VERSION.split('.')[0]) >= 3:
             self._port.write_timeout = 0.3
@@ -258,12 +255,13 @@ class Magstim(object):
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            magstimResponse = tuple(int(x) for x in bytes(responseString[1:-1]).strip().split(b'.') if x.isdigit())
+            #magstimResponse = tuple(int(x) for x in bytes(responseString[1:-1]).strip().split(b'.') if x.isdigit())
+            magstimResponse = tuple(int(x) for x in ''.join([chr(x) for x in responseString[1:-1]]).strip().split('.') if x.isdigit())
         else:
             # Get ASCII code of first data character
             temp = responseString.pop(0)
             # Interpret bits
-            magstimResponse = {'instr':{'standby':      temp &   1,
+            magstimResponse = {'instr':{'standby':       temp &   1,
                                         'armed':        (temp >> 1) & 1,
                                         'ready':        (temp >> 2) & 1,
                                         'coilPresent':  (temp >> 3) & 1,
@@ -504,6 +502,8 @@ class Magstim(object):
                 # Switch keys depending on whether we're returning for a BiStim
                 if type(self).__name__ == 'BiStim':
                     priorPower = priorPower['bistimParam']['powerA'] if _commandByte == b'@' else priorPower['bistimParam']['powerB']
+                elif type(self).__name__ == 'Rapid':
+                    priorPower = priorPower['rapidParam']['power']
                 else:
                     priorPower = priorPower['magstimParam']['power']
         
@@ -600,10 +600,10 @@ class Magstim(object):
 
     def isArmed(self):
         """ 
-        Helper function that returns True if the Magstim is armed, False if not if it could not be determined.
+        Helper function that returns True if the Magstim is armed or ready, False if not or if it could not be determined.
         """
         error,parameters = self._queryCommand()
-        return bool(parameters['instr']['armed']) if not error else False
+        return (bool(parameters['instr']['armed']) or bool(parameters['instr']['remoteStatus'])) if not error else False
 
     def isUnderControl(self):
         """ 
@@ -667,8 +667,8 @@ class BiStim(Magstim):
     def highResolutionMode(self, enable, receipt=False):
         """ 
         Enable/Disable high resolution timing of interpulse interval.
-        When enabling high-resolution mode, the system will default to the current interval divided by 10.
-        When reverting back to low-resolution Mode, the system will default to a 10ms interval.
+        When enabling high-resolution mode, the system will default to a 1ms interval.
+        When disabling high-resolution mode, the system will default to a 10ms interval.
         N.B. This cannot be changed while the system is armed.
         
         Args:
@@ -821,7 +821,7 @@ class Rapid(Magstim):
         return max(0.5, (nPulses * ((frequency * Rapid.JOULES[power]) - 1050.0)) / (1050.0 * frequency))
 
     def getRapidMaxOnTime(power, frequency):
-        """ Calculate maximum train duration for given power and frequency. If greater than 60 seconds, will allow for continuous operation for up to 6000 pulses."""
+        """ Calculate maximum train duration per minute for given power and frequency. If greater than 60 seconds, will allow for continuous operation for up to 6000 pulses."""
         return 63000.0 / (frequency * Rapid.JOULES[power])
 
     def getRapidMaxContinuousOperationFrequency(power):
@@ -1052,7 +1052,7 @@ class Rapid(Magstim):
         if updateError:
             return Magstim.PARAMETER_ACQUISTION_ERR
         else:
-            maxFrequency = Rapid.MAX_FREQUENCY[currentParameters['rapidParam']['power']]
+            maxFrequency = Rapid.MAX_FREQUENCY[self._voltage][self._super][currentParameters['rapidParam']['power']]
             if not (0 <= newFrequency <= maxFrequency):
                 return Magstim.PARAMETER_RANGE_ERR
 
@@ -1184,10 +1184,16 @@ class Rapid(Magstim):
         """
         self._sequenceValidated =  False
 
+        # Check current enhanced power status
+        if self.isEnhanced():
+            maxPower = 110
+        else:
+            maxPower = 100
+
         # Make sure we have a valid power value
         if newPower % 1:
             return Magstim.PARAMETER_FLOAT_ERR
-        elif not 0 <= newPower <= (110 if self.isEnhanced else 100):
+        elif not 0 <= newPower <= maxPower:
             return Magstim.PARAMETER_RANGE_ERR
         
         error, message = super(Rapid,self).setPower(newPower,True,delay,b'@')
@@ -1295,11 +1301,11 @@ class Rapid(Magstim):
         error,parameters = self.getParameters()
         if error:
             return Magstim.PARAMETER_ACQUISTION_ERR
-        elif min(parameters['duration'], 60) > Rapid.getRapidMaxOnTime(parameters['rapidParam']['power'], parameters['rapidParam']['frequency']):
+        elif min(parameters['rapidParam']['duration'], 60) > Rapid.getRapidMaxOnTime(parameters['rapidParam']['power'], parameters['rapidParam']['frequency']):
             return Magstim.MAX_ON_TIME_ERR
         else:
             self._sequenceValidated = True
-            return (0, 'Seqeunce valid.')
+            return (0, 'Sequence valid.')
 
     def getSystemStatus(self):
         """ 
