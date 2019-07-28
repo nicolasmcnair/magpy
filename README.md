@@ -20,7 +20,7 @@ Alternatively, you can download the contents of the `magpy` folder and copy them
 
 ## Usage
 
-Check the Wiki (https://github.com/nicolasmcnair/magpy/wiki) for details on how use MagPy. Please note that the serial cable must be plugged directly into the back of the Rapid<sup>2</sup> main unit, not into the back of UI.
+Check the Wiki (https://github.com/nicolasmcnair/magpy/wiki) for details on how use MagPy. Please note that the serial cable must be plugged directly into the back of the Rapid<sup>2</sup> main unit, **__not__** into the back of UI.
 
 **Important Note: In versions prior to 1.2, all parameters must be supplied in their lowest unit of resolution. For BiStim<sup>2</sup> stimulators, this means that the interpulse interval should be supplied in ms if in normal mode, and tenths of a millisecond in high-resolution mode. For Rapid<sup>2</sup> stimulators, this means that frequency should be supplied in tenths of a Hz and duration in tenths of a second. From version 1.2 onwards, all units must be supplied in their base unit: ms for interpulse interval (regardless of mode), Hz for frequency, and seconds for duration. See the help description for each command for details about what unit it is expecting.**
 
