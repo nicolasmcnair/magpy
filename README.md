@@ -2,9 +2,11 @@
 
 A Python toolbox for controlling Magstim TMS stimulators via serial communication.
 
-Previously, MagPy only supported Rapid Magstim stimulators with software version 8 or lower. The most recent version (1.2.0b) is a work-in-progress to update MagPy to support software versions up to 11. There may be bugs!
+---
+**IMPORTANT NOTE**
 
-**Important Note: In versions prior to 1.2, all parameters must be supplied in their lowest unit of resolution. For BiStim<sup>2</sup> stimulators, this means that the interpulse interval should be supplied in ms if in normal mode, and tenths of a millisecond in high-resolution mode. For Rapid<sup>2</sup> stimulators, this means that frequency should be supplied in tenths of a Hz and duration in tenths of a second. From version 1.2 onwards, all units must be supplied in their base unit: ms for interpulse interval (regardless of mode), Hz for frequency, and seconds for duration. See the help description for each command for details about what unit it is expecting.**
+I now have access to a working Magstim Rapid stimulator again and so have managed to squash most bugs present in version 1.2b. I have successfully run through a number of TMS-based experiment scripts without any errors or loss of control over the stimulator. This indicates that version 1.2 is now working properly and therefore is moved out of beta status. Please let me know if you find any additional bugs.
+---
 
 ## Installation
 
@@ -20,7 +22,9 @@ Alternatively, you can download the contents of the `magpy` folder and copy them
 
 Check the Wiki (https://github.com/nicolasmcnair/magpy/wiki) for details on how use MagPy.
 
-**N.B. For Rapid<sup>2</sup> stimulators, the unlock code should be supplied on its own (i.e., without the command character 'Q' or the CRC). See the commented out command in the example below.**
+**Important Note: In versions prior to 1.2, all parameters must be supplied in their lowest unit of resolution. For BiStim<sup>2</sup> stimulators, this means that the interpulse interval should be supplied in ms if in normal mode, and tenths of a millisecond in high-resolution mode. For Rapid<sup>2</sup> stimulators, this means that frequency should be supplied in tenths of a Hz and duration in tenths of a second. From version 1.2 onwards, all units must be supplied in their base unit: ms for interpulse interval (regardless of mode), Hz for frequency, and seconds for duration. See the help description for each command for details about what unit it is expecting.**
+
+N.B. For Rapid<sup>2</sup> stimulators, the unlock code - only needed for software versions 9 and higher - should be supplied on its own (i.e., without the command character 'Q' or the CRC, but including hyphens). See the commented out command in the example below.
 
 Example:
 
@@ -46,12 +50,14 @@ if __name__ == "__main__":
 | 1.1            |            <=6           |        2       |
 | 1.1.1          |            <=8           |        2       |
 | 1.1.2          |            <=8           |      2 & 3     |
-| 1.2.0b         |            <=11          |      2 & 3     |
+| 1.2            |            <=11          |      2 & 3     |
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
-02-04-19: MagPy should now be able to be installed directly from githb via pip
+28-07-19: Fixed numerous bugs. Version 1.2 is now working properly
+
+02-04-19: MagPy should now be able to be installed directly from github via pip
 
 02-04-19: Fixed a bug in checking the class of the stimulator during setPower()
 
