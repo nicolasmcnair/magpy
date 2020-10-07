@@ -37,7 +37,7 @@ if __name__ == "__main__":
     #myMagstim = magstim.Rapid(address='COM1', superRapid=1, unlockCode='xxxx-xxxxxxxx-xx')
     myMagstim.connect()
     errorCode,parameterInfo = myMagstim.getParameters()
-    sleep(2) # This pause is needed if trying to arm soon after connecting,  as sometimes the maintain connection process seems to fail to spin up fast enough
+    sleep(3) # This pause is needed if trying to arm soon after connecting,  as sometimes the maintain connection process seems to fail to spin up fast enough
     myMagstim.arm(delay=True)
     myMagstim.fire()
     myMagstim.disconnect()
