@@ -218,6 +218,7 @@ class connectionRobot(Process):
                         elif message == 1:
                             pokeLatency = 5
                         self._nextPokeTime = defaultTimer() + pokeLatency
+                        break
             # If we made it all the way to the next poll time, send a poll to the port controller
             else:
                 self._serialWriteQueue.put(self._connectionCommand)
