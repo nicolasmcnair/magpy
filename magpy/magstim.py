@@ -95,47 +95,52 @@ class serialPortController(Process):
         # This continually monitors the serialWriteQueue for write requests
         while True:
             message, reply, readBytes = self._serialWriteQueue.get()
-            # If the first part of the message is None this signals the process to close the port and stop
-            if message is None:
-                break
-            # If the first part of the message is a 1 this signals the process to trigger a quick fire using the RTS pin
-            elif message == 1:
-                self._port.setRTS(True)
-            # If the first part of the message is a -1 this signals the process to reset the RTS pin
-            elif message == -1:                
-                self._port.setRTS(False)
-            # Otherwise, the message is a command string
-            else:
-                # There shouldn't be any rubbish in the input buffer, but check and clear it just in case
-                if self._port.anyWaiting():
-                    self._port.portFlush()
-                try:
-                    # Try writing to the port
-                    self._port.write(message)
-                    # Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
+            try:
+                # If the first part of the message is None this signals the process to close the port and stop
+                if message is None:
+                    break
+                # If the first part of the message is a 1 this signals the process to trigger a quick fire using the RTS pin
+                elif message == 1:
+                    self._port.setRTS(True)
+                # If the first part of the message is a -1 this signals the process to reset the RTS pin
+                elif message == -1:                
+                    self._port.setRTS(False)
+                # Otherwise, the message is a command string
+                else:
+                    # There shouldn't be any rubbish in the input buffer, but check and clear it just in case
+                    if self._port.anyWaiting():
+                        self._port.portFlush()
                     try:
-                        # Read the first byte
-                        message = bytearray(self._port.read(1))
-                        # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
-                        if message == b'N':
-                            while message[-1] > 0:
+                        # Try writing to the port
+                        self._port.write(message)
+                        # Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
+                        try:
+                            # Read the first byte
+                            message = bytearray(self._port.read(1))
+                            # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
+                            if message == b'N':
+                                while message[-1] > 0:
+                                    message += self._port.read(1)
+                                # After the end of the version number, read one more byte to grab the CRC
                                 message += self._port.read(1)
-                            # After the end of the version number, read one more byte to grab the CRC
-                            message += self._port.read(1)
-                        # If the first byte is not '?', then the message was understood so carry on reading in the response (if it was a '?', then this will be the only returned byte).
-                        elif message != b'?':
-                            # Read the second byte
-                            message += self._port.read(1)
-                            # If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
-                            # In these cases, just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
-                            message += self._port.read(readBytes - 2) if message[-1] not in {83, 63} else self._port.read(1)
-                        # Return the reply if we want it
-                        if reply:
-                            self._serialReadQueue.put([0, message])
-                    except: #serial.SerialException:
-                        self._serialReadQueue.put(serialPortController.SERIAL_READ_ERR)
-                except: #serial.SerialException:
-                    self._serialReadQueue.put(serialPortController.SERIAL_WRITE_ERR)
+                            # If the first byte is not '?', then the message was understood so carry on reading in the response (if it was a '?', then this will be the only returned byte).
+                            elif message != b'?':
+                                # Read the second byte
+                                message += self._port.read(1)
+                                # If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
+                                # In these cases, just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
+                                message += self._port.read(readBytes - 2) if message[-1] not in {83, 63} else self._port.read(1)
+                            # Return the reply if we want it
+                            if reply:
+                                self._serialReadQueue.put([0, message])
+                        except Exception: #serial.SerialException:
+                            self._serialReadQueue.put(serialPortController.SERIAL_READ_ERR)
+                    except Exception: #serial.SerialException:
+                        self._serialReadQueue.put(serialPortController.SERIAL_WRITE_ERR)
+            except IOError as e:
+                print("Encountered unrecoverable IO error:")
+                print(e)
+                break
         #If we get here, it's time to shutdown the serial port controller
         self._port.close()
         return
@@ -373,11 +378,11 @@ class Magstim(object):
             self.disarm()
             self._robotQueue.put(None)
             if self._robot.is_alive():
-                self._robot.join()
+                self._robot.join(timeout=2.0)
             self.remoteControl(enable=False)
             self._sendQueue.put((None, None, None))
             if self._connection.is_alive():
-                self._connection.join()
+                self._connection.join(timeout=2.0)
             self._connected = False
     
     def _processCommand(self, commandString, receiptType, readBytes):
