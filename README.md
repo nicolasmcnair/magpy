@@ -55,6 +55,8 @@ if __name__ == "__main__":
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+07-10-20: Fixed an issue where Magstim.disconnect() could hang due to the serialPortController crashing (thanks to a-hurst for this)
+
 28-07-19: Fixed numerous bugs. Version 1.2 is now working properly
 
 02-04-19: MagPy should now be able to be installed directly from github via pip
