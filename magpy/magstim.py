@@ -203,12 +203,10 @@ class connectionRobot(Process):
                     # If the message is None this signals the process to stop
                     if message is None:
                         self._stopped = True
-                        break
                     # If the message is -1, we've relinquished remote control so signal the process to pause
                     elif message == -1:
                         pokeLatency = 5
                         self._paused = True
-                        break
                     # Any other message signals a command has been sent to the serial port controller
                     else:
                         # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
@@ -218,7 +216,7 @@ class connectionRobot(Process):
                         elif message == 1:
                             pokeLatency = 5
                         self._nextPokeTime = defaultTimer() + pokeLatency
-                        break
+                    break
             # If we made it all the way to the next poll time, send a poll to the port controller
             else:
                 self._serialWriteQueue.put(self._connectionCommand)
