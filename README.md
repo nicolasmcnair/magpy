@@ -57,6 +57,8 @@ if __name__ == "__main__":
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
+14-10-20: Fixed an issue in how the subprocesses were stopped when disconnecting from the Magstim
+
 07-10-20: Fixed an issue that could cause the Magstim to disarm immediately after arming
 
 07-10-20: Fixed an issue where Magstim.disconnect() could hang due to the serialPortController crashing (thanks to a-hurst for this)
