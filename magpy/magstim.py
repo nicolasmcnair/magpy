@@ -137,9 +137,7 @@ class serialPortController(Process):
                             self._serialReadQueue.put(serialPortController.SERIAL_READ_ERR)
                     except Exception: #serial.SerialException:
                         self._serialReadQueue.put(serialPortController.SERIAL_WRITE_ERR)
-            except IOError as e:
-                print("Encountered unrecoverable IO error:")
-                print(e)
+            except IOError:
                 break
         #If we get here, it's time to shutdown the serial port controller
         self._port.close()
@@ -375,10 +373,11 @@ class Magstim(object):
         """        
         if self._connected:
             self.disarm()
+            self._robotQueue.put(-1)
+            self.remoteControl(enable=False, receipt=True)
             self._robotQueue.put(None)
             if self._robot.is_alive():
                 self._robot.join(timeout=2.0)
-            self.remoteControl(enable=False)
             self._sendQueue.put((None, None, None))
             if self._connection.is_alive():
                 self._connection.join(timeout=2.0)
@@ -429,9 +428,7 @@ class Magstim(object):
                         return Magstim.CRC_MISMATCH_ERR
             # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
             if self._connected:
-                if commandString[0] == 82:
-                    self._robotQueue.put(-1)
-                elif commandString[:2] == b'EA':
+                if commandString[:2] == b'EA':
                     self._robotQueue.put(1)
                 elif commandString[:2] == b'EB':
                     self._robotQueue.put(2)
