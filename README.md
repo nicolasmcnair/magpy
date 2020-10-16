@@ -46,13 +46,14 @@ if __name__ == "__main__":
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
 
 ## Version Summary
-_Note: Only version 1.2 is under active development_
+_Note: Only version 1.2 is under active development. Version 1.1.3b is a version of 1.1.2 will some fixes from 1.2 backported._
 | MagPy Version  | Magstim Software Version | Python Version |
 |:--------------:|:------------------------:|:--------------:|
 | 1.0            |            <=6           |        2       |
 | 1.1            |            <=6           |        2       |
 | 1.1.1          |            <=8           |        2       |
 | 1.1.2          |            <=8           |      2 & 3     |
+| 1.1.3b         |            <=8           |      2 & 3     |
 | 1.2            |            <=11          |      2 & 3     |
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
