@@ -16,15 +16,20 @@ from functools import partial
 from yaml import load
 from ast import literal_eval
 
-# Switch timer based on platform
-if platform == 'win32':
-    # On Windows, use time.clock
-    from time import clock
-    defaultTimer = clock
+# Switch timer based on python version and platform
+if version_info >= (3,3):
+    # In python 
+    from time import perf_counter
+    defaultTimer = perf_counter
 else:
-    # On other platforms use time.time
-    from time import time    
-    defaultTimer = time
+    if platform == 'win32':
+        # On Windows, use time.clock
+        from time import clock
+        defaultTimer = clock
+    else:
+        # On other platforms use time.time
+        from time import time    
+        defaultTimer = time
 
 # Calculate checksum for command
 if version_info >= (3,):
