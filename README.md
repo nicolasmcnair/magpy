@@ -60,6 +60,8 @@ _Note: Only version 1.2 is under active development_
 ## Recent Updates
 _Note: dates of fixes have been reordered to YY-MM-DD_
 
+20-10-16: MagPy will now use time.perf_counter as its timer function when run on Python 3.3+
+
 20-10-14: Fixed an issue in how the subprocesses were stopped when disconnecting from the Magstim
 
 20-10-07: Fixed an issue that could cause the Magstim to disarm immediately after arming
