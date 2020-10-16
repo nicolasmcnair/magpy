@@ -46,6 +46,7 @@ if __name__ == "__main__":
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
 
 ## Version Summary
+_Note: Only version 1.2 is under active development_
 | MagPy Version  | Magstim Software Version | Python Version |
 |:--------------:|:------------------------:|:--------------:|
 | 1.0            |            <=6           |        2       |
