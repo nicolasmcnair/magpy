@@ -1141,7 +1141,7 @@ class Rapid(Magstim):
         # Make sure we have a valid duration value
         if newDuration % 1:
             return Magstim.PARAMETER_PRECISION_ERR
-        elif not (0 <= newDuration <= (999 if self._version < (9,0,0) else 9999)):
+        elif not (0 <= newDuration <= (999 if self._version < (9,) else 9999)):
             return Magstim.PARAMETER_RANGE_ERR
 
         error, message = self._processCommand(b'[' + bytearray(str(int(newDuration)).zfill(4 if self._version >= (9,) else 3),encoding='ascii'), 'instrRapid', 4)
@@ -1234,7 +1234,7 @@ class Rapid(Magstim):
         """
         if self._version is None:
             return Magstim.GET_SYSTEM_STATUS_ERR
-        elif self._version < (9, 0, 0):
+        elif self._version < (9,):
             return Magstim.SYSTEM_STATUS_VERSION_ERR
 
         self._sequenceValidated =  False
@@ -1258,7 +1258,7 @@ class Rapid(Magstim):
         """
         if self._version is None:
             return Magstim.GET_SYSTEM_STATUS_ERR
-        elif self._version < (9, 0, 0):
+        elif self._version < (9,):
             return Magstim.SYSTEM_STATUS_VERSION_ERR
 
         return self._processCommand(b'o@', 'instrCharge', 8 if self._version > (9,) else 7)
