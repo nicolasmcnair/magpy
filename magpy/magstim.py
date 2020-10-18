@@ -938,7 +938,7 @@ class Rapid(Magstim):
         """
         self._sequenceValidated =  False
         # Durations of 1 or 0 are used to toggle repetitive mode on and off
-        if self._version >= (9, 0, 0):
+        if self._version >= (9,):
             commandString = b'[0010' if enable else b'[0000'
         else:
             commandString = b'[010' if enable else b'[000'
@@ -1068,7 +1068,7 @@ class Rapid(Magstim):
         if not error:
             updateError,currentParameters = self.getParameters()
             if not updateError:
-                updateError,currentParameters = self._processCommand(b'D' + bytearray(str(int(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+                updateError,currentParameters = self._processCommand(b'D' + bytearray(str(int(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9,) else 4),encoding='ascii'), 'instrRapid', 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1103,12 +1103,12 @@ class Rapid(Magstim):
             return Magstim.PARAMETER_RANGE_ERR
 
         #Send command
-        error, message = self._processCommand(b'D' + bytearray(str(int(newNPulses)).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+        error, message = self._processCommand(b'D' + bytearray(str(int(newNPulses)).zfill(5 if self._version >= (9,) else 4),encoding='ascii'), 'instrRapid', 4)
         #If we didn't get an error, update the other parameters accordingly
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand(b'[' + bytearray(str(int(currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency'])).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid' if receipt else None, 4)
+                updateError, currentParameters = self._processCommand(b'[' + bytearray(str(int(currentParameters['rapidParam']['nPulses'] / currentParameters['rapidParam']['frequency'])).zfill(4 if self._version >= (9,) else 3),encoding='ascii'), 'instrRapid' if receipt else None, 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1144,11 +1144,11 @@ class Rapid(Magstim):
         elif not (0 <= newDuration <= (999 if self._version < (9,0,0) else 9999)):
             return Magstim.PARAMETER_RANGE_ERR
 
-        error, message = self._processCommand(b'[' + bytearray(str(int(newDuration)).zfill(4 if self._version >= (9, 0, 0) else 3),encoding='ascii'), 'instrRapid', 4)
+        error, message = self._processCommand(b'[' + bytearray(str(int(newDuration)).zfill(4 if self._version >= (9,) else 3),encoding='ascii'), 'instrRapid', 4)
         if not error:
             updateError, currentParameters = self.getParameters()
             if not updateError:
-                updateError, currentParameters = self._processCommand(b'D' + bytearray(str(int(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9, 0, 0) else 4),encoding='ascii'), 'instrRapid', 4)
+                updateError, currentParameters = self._processCommand(b'D' + bytearray(str(int(currentParameters['rapidParam']['duration'] * currentParameters['rapidParam']['frequency'])).zfill(5 if self._version >= (9,) else 4),encoding='ascii'), 'instrRapid', 4)
                 if updateError:
                     return Magstim.PARAMETER_UPDATE_ERR
             else:
@@ -1243,7 +1243,7 @@ class Rapid(Magstim):
         if newDelay % 1:
             return Magstim.PARAMETER_FLOAT_ERR
 
-        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10, 0, 0) else 4),encoding='ascii'), 'systemRapid' if self._version >= (10, 0, 0) else 'instrRapid', 6 if self._version >= (10, 0, 0) else 4)
+        error, message = self._processCommand(b'n' + bytearray(str(int(newDelay)).zfill(5 if self._version >= (10,) else 4),encoding='ascii'), 'systemRapid' if self._version >= (10,) else 'instrRapid', 6 if self._version >= (10,) else 4)
         
         return (error,message) if receipt else None
 
@@ -1261,7 +1261,7 @@ class Rapid(Magstim):
         elif self._version < (9, 0, 0):
             return Magstim.SYSTEM_STATUS_VERSION_ERR
 
-        return self._processCommand(b'o@', 'instrCharge', 8 if self._version > (9, 0, 0) else 7)
+        return self._processCommand(b'o@', 'instrCharge', 8 if self._version > (9,) else 7)
 
     def fire(self, receipt=False):
         """ 
@@ -1324,7 +1324,7 @@ class Rapid(Magstim):
         """
         if self._version is None:
             return Magstim.GET_SYSTEM_STATUS_ERR
-        elif self._version >= (9, 0, 0):
+        elif self._version >= (9,):
             return self._processCommand(b'x@', 'systemRapid', 6)
         else:
             return Magstim.SYSTEM_STATUS_VERSION_ERR
