@@ -61,6 +61,8 @@ _Note: Only version 1.2 is under active development. Version 1.1.3b is a version
 ## Recent Updates
 _Note: dates of fixes have been reordered to YY-MM-DD_
 
+20-10-20: Fixed an issue where the maximum allowed frequency was incorrectly calculated, and could prevent the frequency from being changed
+
 20-10-19: Fixed an issue where checking for software version in units with version 9.0 would fail 
 
 20-10-16: MagPy will now use time.perf_counter as its timer function when run on Python 3.3+
