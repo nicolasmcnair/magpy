@@ -1058,7 +1058,7 @@ class Rapid(Magstim):
         if updateError:
             return Magstim.PARAMETER_ACQUISTION_ERR
         else:
-            maxFrequency = Rapid.MAX_FREQUENCY[self._voltage][self._super][currentParameters['rapidParam']['power']]
+            maxFrequency = Rapid.MAX_FREQUENCY[self._voltage][self._super][currentParameters['rapidParam']['power']] * 10
             if not (0 <= newFrequency <= maxFrequency):
                 return Magstim.PARAMETER_RANGE_ERR
 
