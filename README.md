@@ -3,10 +3,6 @@
 A Python toolbox for controlling Magstim TMS stimulators via serial communication.
 
 ---
-**IMPORTANT NOTE**
-
-I now have access to a working Magstim Rapid<sup>2</sup> stimulator again and so have managed to squash most bugs present in version 1.2b. I have successfully run through a number of TMS-based experiment scripts without any errors or loss of control over the stimulator. This indicates that version 1.2 is now working properly and therefore is moved out of beta status. Please let me know if you find any additional bugs.
----
 
 ## Installation
 
@@ -60,6 +56,10 @@ _Note: Only version 1.2 is under active development. Version 1.1.3b is a version
 
 ## Recent Updates
 _Note: dates of fixes have been reordered to YY-MM-DD_
+
+20-10-22: rTMSMode() will now check whether the stimulator is currently in rTMS mode before attempting to enable or disable
+
+20-10-22: validateSequence() will now return the current Rapid parameters if receipt is True
 
 20-10-20: Fixed an issue where the maximum allowed frequency was incorrectly calculated, and could prevent the frequency from being changed
 
