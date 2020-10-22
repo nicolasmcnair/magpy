@@ -57,7 +57,7 @@ _Note: Only version 1.2 is under active development. Version 1.1.3b is a version
 ## Recent Updates
 _Note: dates of fixes have been reordered to YY-MM-DD_
 
-20-10-22: rTMSMode() will now check whether the stimulator is currently in rTMS mode before attempting to enable or disable
+20-10-22: rTMSMode() will now check whether the stimulator is currently in rTMS mode before attempting to enable or disable. This will avoid overwriting the current settings on the unit if rTMS mode is already enabled
 
 20-10-22: validateSequence() will now return the current Rapid parameters if receipt is True
 
