@@ -937,25 +937,34 @@ class Rapid(Magstim):
             None
         """
         self._sequenceValidated =  False
-        # Durations of 1 or 0 are used to toggle repetitive mode on and off
-        if self._version >= (9,):
-            commandString = b'[0010' if enable else b'[0000'
+        # Get current parameters
+        updateError,currentParameters = self.getParameters()
+        if updateError:
+            return Magstim.PARAMETER_ACQUISTION_ERR
         else:
-            commandString = b'[010' if enable else b'[000'
-        error,message = self._processCommand(commandString, 'instrRapid', 4)
-        if not error:
-            if enable:
-                self._repetitiveMode = True
-                updateError,currentParameters = self.getParameters()
-                if not updateError:
-                    if currentParameters['rapidParam']['frequency'] == 0:
-                        updateError,currentParameters = self._processCommand(b'B0010', 'instrRapid', 4)
-                        if updateError:
-                            return Magstim.PARAMETER_UPDATE_ERR
-                else:
-                    return Magstim.PARAMETER_ACQUISTION_ERR
+            # See if Rapid already in rTMS mode (if enabling) or already in single-pulse mode (if disabling)
+            if (not currentParameters['rapid']['singlePulseMode'] and enable) or (currentParameters['rapid']['singlePulseMode'] and not enable):
+                del currentParameters['rapidParam']
+                return (0,currentParameters) if receipt else None
+            # Durations of 1 or 0 are used to toggle repetitive mode on and off
+            if self._version >= (9,):
+                commandString = b'[0010' if enable else b'[0000'
             else:
-                self._repetitiveMode = False
+                commandString = b'[010' if enable else b'[000'
+            error,message = self._processCommand(commandString, 'instrRapid', 4)
+            if not error:
+                if enable:
+                    self._repetitiveMode = True
+                    updateError,currentParameters = self.getParameters()
+                    if not updateError:
+                        if currentParameters['rapidParam']['frequency'] == 0:
+                            updateError,currentParameters = self._processCommand(b'B0010', 'instrRapid', 4)
+                            if updateError:
+                                return Magstim.PARAMETER_UPDATE_ERR
+                    else:
+                        return Magstim.PARAMETER_ACQUISTION_ERR
+                else:
+                    self._repetitiveMode = False
         
         return (error,message) if receipt else None
 
@@ -1302,8 +1311,9 @@ class Rapid(Magstim):
         Returns:
         :tuple:(error,message):
             error (int): error code (0 = no error; 1+ = error)
-            message (dict,str): if error is 0 (False) returns 'OK', otherwise returns an error string
+            message (dict,str): if error is 0 (False) returns current Rapid parameters, otherwise returns an error string
         """
+        self._sequenceValidated = False
         error,parameters = self.getParameters()
         if error:
             return Magstim.PARAMETER_ACQUISTION_ERR
@@ -1311,7 +1321,7 @@ class Rapid(Magstim):
             return Magstim.MAX_ON_TIME_ERR
         else:
             self._sequenceValidated = True
-            return (0, 'Sequence valid.')
+            return (0, parameters)
 
     def getSystemStatus(self):
         """ 
