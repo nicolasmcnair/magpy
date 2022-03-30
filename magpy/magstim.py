@@ -376,11 +376,12 @@ class Magstim(object):
         self._connected = False
         
     def _setupSerialPort(self, serialConnection, debugSerialConnection=None):
-        if serialConnection.lower() == 'virtual':
-            from _virtual import virtualPortController
-            self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue)
-        else:
-            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
+        #if serialConnection.lower() == 'virtual':
+        #    from _virtual import virtualPortController
+        #    self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue)
+        #else:
+        #    self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
+        self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
     
     def connect(self):
         """ 
@@ -877,11 +878,12 @@ class Rapid(Magstim):
         self._repetitiveMode = False
 
     def _setupSerialPort(self, serialConnection, debugSerialConnection=None):
-        if serialConnection.lower() == 'virtual':
-            from _virtual import virtualPortController
-            self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue,superRapid=self._super,unlockCode=self._unlockCode,voltage=self._voltage,version=self._version)
-        else:
-            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
+        #if serialConnection.lower() == 'virtual':
+        #    from _virtual import virtualPortController
+        #    self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue,superRapid=self._super,unlockCode=self._unlockCode,voltage=self._voltage,version=self._version)
+        #else:
+        #    self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
+        self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
 
     def getVersion(self):
         """ 
