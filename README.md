@@ -42,7 +42,8 @@ if __name__ == "__main__":
 **Note**: If connecting to a Magstim on a computer running macOS, the address of the serial port you use to create the Magstim object must be the `/dev/cu.*` address for the port and not the `/dev/tty.*` address. Using the `tty` address will create the object successfully, but will result in numerous communication issues with the device.
 
 ## Version Summary
-_Note: Only version 1.2 is under active development. Version 1.1.3b is a version of 1.1.2 will some fixes from 1.2 backported._
+**_Previous versions of MagPy have been removed. If you require an older version, please contact me.**
+_Note: Only version 1.4 is under active development. Version 1.3 was abandoned for 1.4. Version 1.1.3b is a version of 1.1.2 will some fixes from 1.2 backported._
 | MagPy Version  | Magstim Software Version | Python Version |
 |:--------------:|:------------------------:|:--------------:|
 | 1.0            |            <=6           |        2       |
@@ -51,11 +52,16 @@ _Note: Only version 1.2 is under active development. Version 1.1.3b is a version
 | 1.1.2          |            <=8           |      2 & 3     |
 | 1.1.3b         |            <=8           |      2 & 3     |
 | 1.2            |            <=11          |      2 & 3     |
+| 1.4            |            <=11          |        3*      |
+
+*May be compatible with 2, but has not been tested
 
 **Note**: Magstim Software Version compatibility only concerns Rapid<sup>2</sup> stimulators; all versions should be compatible with 200<sup>2</sup> and BiStim<sup>2</sup> stimulators.
 
 ## Recent Updates
 _Note: dates of fixes have been reordered to YY-MM-DD_
+
+22-03-30: Under Windows 10, the two additional processes that MagPy uses control the serial port and to regularly contact the Magstim unit seem to take longer than previously to spin up. Because of the dependency between them, this sometimes resulted in one (or both) of the processes crashing and remote control of the Magstim being lost. These two processes have now been merged to avoid this issue.
 
 20-10-22: rTMSMode() will now check whether the stimulator is currently in rTMS mode before attempting to enable or disable. This will avoid overwriting the current settings on the unit if rTMS mode is already enabled
 
