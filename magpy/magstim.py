@@ -9,16 +9,16 @@ import serial
 from sys import version_info, platform
 from os.path import realpath, join, dirname
 from os import getcwd
-from math import floor
+from queue import Empty
 from time import sleep
 from multiprocessing import Queue, Process
 from functools import partial
-from yaml import load
+from yaml import safe_load
 from ast import literal_eval
 
 # Switch timer based on python version and platform
 if version_info >= (3,3):
-    # In python 
+    # In python 3.3+
     from time import perf_counter
     defaultTimer = perf_counter
 else:
@@ -65,11 +65,14 @@ class serialPortController(Process):
     SERIAL_WRITE_ERR = (1, 'SERIAL_WRITE_ERR: Could not send the command.')
     SERIAL_READ_ERR  = (2, 'SERIAL_READ_ERR:  Could not read the magstim response.')    
    
-    def __init__(self, serialConnection, serialWriteQueue, serialReadQueue):
+    def __init__(self, serialConnection, serialWriteQueue, serialReadQueue, connectionCommand, debugSerialConnection=None):
         Process.__init__(self)
         self._serialWriteQueue = serialWriteQueue
         self._serialReadQueue = serialReadQueue
         self._address = serialConnection
+        self._maintainCommunicationPaused = True
+        self._connectionCommand = connectionCommand
+        self._debugAddress = debugSerialConnection
 
     def run(self):
         """
@@ -97,9 +100,36 @@ class serialPortController(Process):
             self._port.writeTimeout = 0.3
             self._port.portFlush = self._port.flushInput
             self._port.anyWaiting = self._port.inWaiting
+
+        if self._debugAddress is not None:
+            self._debugPort = serial.Serial(port=self._debugAddress,
+                                            baudrate=9600,
+                                            bytesize=serial.EIGHTBITS,
+                                            stopbits=serial.STOPBITS_ONE,
+                                            parity=serial.PARITY_NONE,
+                                            xonxoff=False)
+            if int(serial.VERSION.split('.')[0]) >= 3:
+                self._debugPort.write_timeout = 0.3
+                self._debugPort.portFlush = self._debugPort.reset_input_buffer
+                self._debugPort.anyWaiting = lambda:self._port.in_waiting
+            else:
+                self._debugPort.writeTimeout = 0.3
+                self._debugPort.portFlush = self._debugPort.flushInput
+                self._debugPort.anyWaiting = self._debugPort.inWaiting   
+
+        # This sends an "enable remote control" command to the magstim every 500ms (if armed) or 5000 ms (if disarmed); only runs once the stimulator is armed
+        pokeLatency = 5
+        # Set time of last command
+        lastCommand = defaultTimer()
+
         # This continually monitors the serialWriteQueue for write requests
         while True:
-            message, reply, readBytes = self._serialWriteQueue.get()
+            timeout = pokeLatency - (defaultTimer() - lastCommand)
+            try:
+                message, reply, readBytes = self._serialWriteQueue.get(timeout=None if self._maintainCommunicationPaused else timeout)
+            # If Empty raised, there was no command sent in the required time so send the standard connection command instead
+            except Empty:
+                message, reply, readBytes = self._connectionCommand
             try:
                 # If the first part of the message is None this signals the process to close the port and stop
                 if message is None:
@@ -110,6 +140,9 @@ class serialPortController(Process):
                 # If the first part of the message is a -1 this signals the process to reset the RTS pin
                 elif message == -1:                
                     self._port.setRTS(False)
+                # If the first part of the message is a 0 this signals the process to reset the regular polling of the Magstim
+                elif message == 0:
+                    lastCommand = defaultTimer()
                 # Otherwise, the message is a command string
                 else:
                     # There shouldn't be any rubbish in the input buffer, but check and clear it just in case
@@ -118,26 +151,50 @@ class serialPortController(Process):
                     try:
                         # Try writing to the port
                         self._port.write(message)
+                        # Set time of last command
+                        lastCommand = defaultTimer()
+                        # Mirror the message to the debug port (if defined); prepend with 1 to signal it as outgoing
+                        if self._debugAddress is not None:
+                            self._debugPort.write(b'\x01' + message)
                         # Read response (this gets a little confusing, as I don't want to rely on timeout to know if there's an error)
                         try:
                             # Read the first byte
-                            message = bytearray(self._port.read(1))
+                            response = bytearray(self._port.read(1))
                             # If the first returned byte is a 'N', we need to read the version number in one byte at a time to catch the string terminator.
-                            if message == b'N':
-                                while message[-1] > 0:
-                                    message += self._port.read(1)
+                            if response == b'N':
+                                while response[-1] > 0:
+                                    response += self._port.read(1)
                                 # After the end of the version number, read one more byte to grab the CRC
-                                message += self._port.read(1)
+                                response += self._port.read(1)
                             # If the first byte is not '?', then the message was understood so carry on reading in the response (if it was a '?', then this will be the only returned byte).
-                            elif message != b'?':
+                            elif response != b'?':
                                 # Read the second byte
-                                message += self._port.read(1)
+                                response += self._port.read(1)
                                 # If the second returned byte is a '?' or 'S', then the data value supplied either wasn't acceptable ('?') or the command conflicted with the current settings ('S'),
-                                # In these cases, just grab the CRC - otherwise, everything is ok so carry on reading the rest of the message
-                                message += self._port.read(readBytes - 2) if message[-1] not in {83, 63} else self._port.read(1)
+                                # In these cases, just grab the CRC
+                                if response[-1] in {ord(b'?'), ord(b'S')}:
+                                    response += self._port.read(1)
+                                # Otherwise, everything is ok so carry on reading the rest of the message
+                                else:
+                                    response += self._port.read(readBytes - 2)
+                                    # If we are enabling/disabling remote control, update maintaining the connection as appropriate
+                                    if response[0] == ord(b'Q'):
+                                        self._maintainCommunicationPaused = False
+                                    elif response[0] == ord(b'R'):
+                                        self._maintainCommunicationPaused = True
+                                    # Otherwise, if we're arming or disarming, then update the poke latency as appropriate
+                                    elif response[0] == ord(b'E'):
+                                        # Check the original message for which we were doing
+                                        if message[1] == ord(b'B'):
+                                            pokeLatency = 0.5
+                                        elif message[1] == ord(b'A'):
+                                            pokeLatency = 5
                             # Return the reply if we want it
                             if reply:
-                                self._serialReadQueue.put([0, message])
+                                self._serialReadQueue.put([0, response])
+                            # Mirror the reply to the debug port  (if defined); prepend with 2 to signal it as incoming
+                            if self._debugAddress is not None:
+                                self._debugPort.write(b'\x02' + response)
                         except Exception: #serial.SerialException:
                             self._serialReadQueue.put(serialPortController.SERIAL_READ_ERR)
                     except Exception: #serial.SerialException:
@@ -146,84 +203,6 @@ class serialPortController(Process):
                 break
         #If we get here, it's time to shutdown the serial port controller
         self._port.close()
-        return
-
-class connectionRobot(Process):
-    """
-    The class creates a Python process which sends an 'enable remote control' command to the Magstim via the serialPortController process every 500ms.
-    
-    N.B. To start the process you must call start() from the parent Python process.
-    
-    Args:
-    serialWriteQueue (multiprocessing.Queue): a Queue for sending commands to be written to the Magstim unit via the serialPortController process
-    updateTimeQueue (multiprocessing.Queue): a Queue for receiving requests from the parent Python process to delay sending its next command
-    """ 
-    def __init__(self, serialWriteQueue, updateRobotQueue):
-        Process.__init__(self)
-        self._serialWriteQueue = serialWriteQueue
-        self._updateRobotQueue = updateRobotQueue
-        self._stopped = False
-        self._paused = True
-        self._nextPokeTime = None
-        self._connectionCommand = None
-
-    def _setCommand(self, connectionCommand):
-        self._connectionCommand = connectionCommand
-        
-    def run(self):
-        """
-        Continuously send commands to the serialPortController process at regular intervals, while also monitoring the updateTimeQueue for commands from the parent Python process if this should be delayed, paused, or stopped.
-        
-        N.B. This should be called via start() from the parent Python process.
-        """
-        # This sends an "enable remote control" command to the serial port controller every 500ms (if armed) or 5000 ms (if disarmed); only runs once the stimulator is armed
-        pokeLatency = 5
-        while True:
-            # If the robot is currently paused, wait until we get a None (stop) or a non-negative number (start/resume) in the queue
-            while self._paused:
-                message = self._updateRobotQueue.get()
-                if message is None:
-                    self._stopped = True
-                    self._paused = False
-                elif message >= 0:
-                    # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
-                    if message == 2:
-                        pokeLatency = 0.5
-                    # If message is a 1, that means we've just disarmed so slow down the poke latency
-                    elif message == 1:
-                        pokeLatency = 5
-                    self._paused = False
-            # Check if we're stopping the robot
-            if self._stopped:
-                break
-            # Update next poll time to the next poke latency
-            self._nextPokeTime = defaultTimer() + pokeLatency
-            # While waiting for next poll...
-            while defaultTimer() < self._nextPokeTime:
-                # ...check to see if there has been an update send from the parent magstim object
-                if not self._updateRobotQueue.empty():
-                    message = self._updateRobotQueue.get()
-                    # If the message is None this signals the process to stop
-                    if message is None:
-                        self._stopped = True
-                    # If the message is -1, we've relinquished remote control so signal the process to pause
-                    elif message == -1:
-                        pokeLatency = 5
-                        self._paused = True
-                    # Any other message signals a command has been sent to the serial port controller
-                    else:
-                        # If message is a 2, that means we've just armed so speed up the poke latency (not sure that's possible while paused, but just in case)
-                        if message == 2:
-                            pokeLatency = 0.5
-                        # If message is a 1, that means we've just disarmed so slow down the poke latency
-                        elif message == 1:
-                            pokeLatency = 5
-                        self._nextPokeTime = defaultTimer() + pokeLatency
-                    break
-            # If we made it all the way to the next poll time, send a poll to the port controller
-            else:
-                self._serialWriteQueue.put(self._connectionCommand)
-        # If we get here, it's time to shutdown the robot
         return
         
 class Magstim(object):
@@ -259,10 +238,63 @@ class Magstim(object):
     MAX_ON_TIME_ERR           = (18, 'MAX_ON_TIME_ERR: Maximum on time exceeded for current train.')
     
     @staticmethod
+    def formatMagstimResponse(response):
+        """Formats already parsed responses from the Magstim unit into strings."""
+        outString = ''
+        if 'instr' in response.keys():
+            outString += ('Instrument Status:\n' +
+                          ' > Standby: ' + str(response['instr']['standby']) + '\n' +
+                          ' > Armed: ' + str(response['instr']['armed']) + '\n' +
+                          ' > Ready: ' + str(response['instr']['ready']) + '\n' +
+                          ' > Coil Present: ' + str(response['instr']['coilPresent']) + '\n' +
+                          ' > Replace Coil: ' + str(response['instr']['replaceCoil']) + '\n' +
+                          ' > Error Present: ' + str(response['instr']['errorPresent']) + '\n' +
+                          ' > Error Type: ' + str(response['instr']['errorType']) + '\n' +
+                          ' > Remote Status: ' + str(response['instr']['remoteStatus']) + '\n\n')
+        if 'extInstr' in response.keys():
+            outString += ('Extended Instrument Status:\n' +
+                          ' > Plus 1 Module Detected: ' + str(response['extInstr']['plus1ModuleDetected']) + '\n' +
+                          ' > Special Trigger Mode Active: ' + str(response['extInstr']['specialTriggerModeActive']) + '\n' +
+                          ' > Charge Delay Set: ' + str(response['extInstr']['chargeDelaySet']) + '\n\n')
+        if 'rapid' in response.keys():
+            outString += ('Rapid Status:\n' +
+                          ' > Enhanced Power Mode: ' + str(response['rapid']['enhancedPowerMode']) + '\n' +
+                          ' > Train: ' + str(response['rapid']['train']) + '\n' +
+                          ' > Wait: ' + str(response['rapid']['wait']) + '\n' +
+                          ' > Single-Pulse Mode: ' + str(response['rapid']['singlePulseMode']) + '\n' +
+                          ' > HV-PSU Connected: ' + str(response['rapid']['hvpsuConnected']) + '\n' +
+                          ' > Coil Ready: ' + str(response['rapid']['coilReady']) + '\n' +
+                          ' > Theta PSU Detected: ' + str(response['rapid']['thetaPSUDetected']) + '\n' +
+                          ' > Modified Coil Algorithm: ' + str(response['rapid']['modifiedCoilAlgorithm']) + '\n\n')
+        if 'magstimParam' in response.keys():
+            outString += ('Magstim Parameters:\n' +
+                          ' > Power: ' + str(response['magstimParam']['power']) + '%\n\n')
+        if 'bistimParam' in response.keys():
+            outString += ('BiStim Parameters:\n' +
+                          ' > Power A: ' + str(response['bistimParam']['powerA']) + '%\n' +
+                          ' > Power B: ' + str(response['bistimParam']['powerB']) + '%\n' +
+                          ' > Paired-Pulse Offset: ' + str(response['bistimParam']['ppOffset']) + '\n\n')
+        if 'rapidParam' in response.keys():
+            outString += ('Rapid Parameters:\n' +
+                          ' > Power: ' + str(response['rapidParam']['power']) + '%\n' +
+                          ' > Frequency: ' + str(response['rapidParam']['frequency']) + 'Hz\n' +
+                          ' > Number of Pulses: ' + str(response['rapidParam']['nPulses']) + '\n' +
+                          ' > Duration: ' + str(response['rapidParam']['duration']) + 's\n' +
+                          ' > Wait: ' + str(response['rapidParam']['wait']) + 's\n\n')
+        if 'chargeDelay' in response.keys():
+            outString += ('Charge Delay: ' + str(response['chargeDelay']['chargeDelay']) + 's\n\n')
+        if 'magstimTemp' in response.keys():
+            outString += ('Coil Temperatures:\n' +
+                          ' > Coil 1 Temperature: ' + str(response['magstimTemp']['coil1Temp']) + ' Degrees Celsius\n' +
+                          ' > Coil 2 Temperature: ' + str(response['magstimTemp']['coil2Temp']) + ' Degrees Celsius\n\n')
+        if 'currentErrorCode' in response.keys():
+            outString += ('Error Code: ' + str(response['magstimTemp']['currentErrorCode']) + '\n\n')
+        return outString
+
+    @staticmethod
     def parseMagstimResponse(responseString, responseType):
         """Interprets responses sent from the Magstim unit."""
         if responseType == 'version':
-            #magstimResponse = tuple(int(x) for x in bytes(responseString[1:-1]).strip().split(b'.') if x.isdigit())
             magstimResponse = tuple(int(x) for x in ''.join([chr(x) for x in responseString[1:-1]]).strip().split('.') if x.isdigit())
         else:
             # Get ASCII code of first data character
@@ -333,24 +365,22 @@ class Magstim(object):
              
         return magstimResponse
 
-    def __init__(self, serialConnection):
+    def __init__(self, serialConnection, debugSerialConnection=None):
         self._sendQueue = Queue()
         self._receiveQueue = Queue()
-        self._setupSerialPort(serialConnection)
-        self._robotQueue = Queue()
-        self._connection.daemon = True
-        self._robot = connectionRobot(self._sendQueue, self._robotQueue)
-        self._robot.daemon = True
-        self._connected = False
+        self._parameterReturnBytes = None
         self._connectionCommand = (b'Q@n', None, 3)
         self._queryCommand = partial(self.remoteControl, enable=True, receipt=True)
+        self._setupSerialPort(serialConnection, debugSerialConnection)
+        self._connection.daemon = True
+        self._connected = False
         
-    def _setupSerialPort(self, serialConnection):
+    def _setupSerialPort(self, serialConnection, debugSerialConnection=None):
         if serialConnection.lower() == 'virtual':
             from _virtual import virtualPortController
             self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue)
         else:
-            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue)
+            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
     
     def connect(self):
         """ 
@@ -360,10 +390,10 @@ class Magstim(object):
         """
         if not self._connected:
             self._connection.start()
+            #success,message = self.remoteControl(enable=True, receipt=True)
+            #if success:
             if not self.remoteControl(enable=True, receipt=True)[0]:
                 self._connected = True
-                self._robot._setCommand(self._connectionCommand)
-                self._robot.start()
             else:
                 self._sendQueue.put((None, None, None))
                 if self._connection.is_alive():
@@ -378,11 +408,7 @@ class Magstim(object):
         """        
         if self._connected:
             self.disarm()
-            self._robotQueue.put(-1)
             self.remoteControl(enable=False, receipt=True)
-            self._robotQueue.put(None)
-            if self._robot.is_alive():
-                self._robot.join(timeout=2.0)
             self._sendQueue.put((None, None, None))
             if self._connection.is_alive():
                 self._connection.join(timeout=2.0)
@@ -405,11 +431,12 @@ class Magstim(object):
         If receiptType argument is None:
             None
         """
+        response = (0, None)
         # Unify Python 2 and 3 strings
         commandString = bytearray(commandString)
         # Only process command if toggling remote control, querying parameters, or disarming, or otherwise only if connected to the Magstim
         # N.B. For Rapid stimulators, we first need to have established what version number we are (which sets _parameterReturnBytes) before we can query parameters
-        if self._connected or (commandString[0] in {81, 82, 74, 70}) or commandString == b'EA' or (commandString[0] == 92 and self._parameterReturnBytes is not None):
+        if self._connected or (commandString[0] in {ord(b'Q'), ord(b'R'), ord(b'J'), ord(b'F')}) or commandString == b'EA' or (commandString[0] == b'\\' and self._parameterReturnBytes is not None):
             # Put command in the send queue to the serial port controller along with what kind of reply is requested and how many bytes to read back from the Magstim
             self._sendQueue.put((bytes(commandString + calcCRC(commandString)), receiptType, readBytes))
             # If expecting a response, start inspecting the receive queue back from the serial port controller
@@ -417,32 +444,26 @@ class Magstim(object):
                 error, reply = self._receiveQueue.get()
                 # If error is true, that means we either couldn't send the command or didn't get anything back from the Magstim
                 if error:
-                    return (error, reply)
+                    response = (error, reply)
                 # If we did get something back from the Magstim, parse the message and the return it
                 else:
                     # Check for error messages
-                    if reply[0] == 63:
-                        return Magstim.INVALID_COMMAND_ERR
-                    elif reply[1] == 63:
-                        return Magstim.INVALID_DATA_ERR
-                    elif reply[1] == 83:
-                        return Magstim.COMMAND_CONFLICT_ERR
+                    if reply[0] == ord(b'?'):
+                        response = Magstim.INVALID_COMMAND_ERR
+                    elif reply[1] == ord(b'?'):
+                        response = Magstim.INVALID_DATA_ERR
+                    elif reply[1] == ord(b'S'):
+                        response = Magstim.COMMAND_CONFLICT_ERR
                     elif reply[0] != commandString[0]:
-                        return Magstim.INVALID_CONFIRMATION_ERR
+                        response = Magstim.INVALID_CONFIRMATION_ERR
                     elif ord(calcCRC(reply[:-1])) != reply[-1]:
-                        return Magstim.CRC_MISMATCH_ERR
-            # If we haven't returned yet, we got a valid message; so update the connection robot if we're connected
-            if self._connected:
-                if commandString[:2] == b'EA':
-                    self._robotQueue.put(1)
-                elif commandString[:2] == b'EB':
-                    self._robotQueue.put(2)
-                else:
-                    self._robotQueue.put(0)
-            # Then return the parsed response if requested
-            return (0, Magstim.parseMagstimResponse(list(reply[1:-1]), receiptType) if receiptType is not None else None)
+                        response = Magstim.CRC_MISMATCH_ERR
+                    else:
+                        # Then return the parsed response if requested
+                        response = (0, Magstim.parseMagstimResponse(list(reply[1:-1]), receiptType))
         else:
-            return Magstim.NO_REMOTE_CONTROL_ERR
+            response = Magstim.NO_REMOTE_CONTROL_ERR
+        return response
     
     def remoteControl(self, enable, receipt=False):
         """ 
@@ -553,7 +574,7 @@ class Magstim(object):
         silent (bool): whether to bump polling robot but without sending enable remote control command (defaults to False)
         """
         if silent and self._connected:
-            self._robotQueue.put(0)
+            self._sendQueue.put((0, None, 0))
         else:
             self._processCommand(*self._connectionCommand)
             
@@ -800,7 +821,7 @@ class Rapid(Magstim):
     __location__ = realpath(join(getcwd(), dirname(__file__)))
     try:
         with open(join(__location__, 'rapid_config.yaml')) as yaml_file:
-            config_data = load(yaml_file)
+            config_data = safe_load(yaml_file)
     except:
         DEFAULT_RAPID_TYPE = 0
         DEFAULT_VOLTAGE = 240
@@ -816,7 +837,7 @@ class Rapid(Magstim):
 
     # Load system info file
     with open(join(__location__, 'rapid_system_info.yaml')) as yaml_file:
-        system_info = load(yaml_file)
+        system_info = safe_load(yaml_file)
     # Maximum allowed rTMS frequency based on voltage and current power setting
     MAX_FREQUENCY = system_info['maxFrequency']
     # Minimum wait time (s) required for rTMS train. Power:Joules per pulse
@@ -834,26 +855,33 @@ class Rapid(Magstim):
         """ Calculate maximum frequency that will allow for continuous operation (up to 6000 pulses)."""
         return 1050.0 / Rapid.JOULES[power]
 
-    def __init__(self, serialConnection, superRapid=DEFAULT_RAPID_TYPE, unlockCode=DEFAULT_UNLOCK_CODE, voltage=DEFAULT_VOLTAGE, version=DEFAULT_VIRTUAL_VERSION):
+    def __init__(self, serialConnection, superRapid=DEFAULT_RAPID_TYPE, unlockCode=DEFAULT_UNLOCK_CODE, voltage=DEFAULT_VOLTAGE, version=DEFAULT_VIRTUAL_VERSION, debugSerialConnection=None):
         self._super = superRapid
         self._unlockCode = unlockCode
         self._voltage = voltage
         self._version = version if serialConnection.lower() == 'virtual' else (0,0,0)
-        super(Rapid, self).__init__(serialConnection)
+        self._sendQueue = Queue()
+        self._receiveQueue = Queue()
+        self._parameterReturnBytes = None
         # If an unlock code has been supplied, then the Rapid requires a different command to stay in contact with it.
         if self._unlockCode:
             self._connectionCommand = (b'x@G', None, 6)
             self._queryCommand = self.getSystemStatus
-        self._parameterReturnBytes = None
+        else:
+            self._connectionCommand = (b'Q@n', None, 3)
+            self._queryCommand = partial(self.remoteControl, enable=True, receipt=True)
+        self._setupSerialPort(serialConnection, debugSerialConnection)
+        self._connection.daemon = True
+        self._connected = False
         self._sequenceValidated = False
         self._repetitiveMode = False
 
-    def _setupSerialPort(self, serialConnection):
+    def _setupSerialPort(self, serialConnection, debugSerialConnection=None):
         if serialConnection.lower() == 'virtual':
             from _virtual import virtualPortController
             self._connection = virtualPortController(self.__class__.__name__,self._sendQueue,self._receiveQueue,superRapid=self._super,unlockCode=self._unlockCode,voltage=self._voltage,version=self._version)
         else:
-            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue)
+            self._connection = serialPortController(serialConnection, self._sendQueue, self._receiveQueue, self._connectionCommand, debugSerialConnection)
 
     def getVersion(self):
         """ 
