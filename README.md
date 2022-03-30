@@ -61,7 +61,7 @@ _Note: Only version 1.4 is under active development. Version 1.3 was abandoned f
 ## Recent Updates
 _Note: dates of fixes have been reordered to YY-MM-DD_
 
-22-03-30: Under Windows 10, the two additional processes that MagPy uses control the serial port and to regularly contact the Magstim unit seem to take longer than previously to spin up. Because of the dependency between them, this sometimes resulted in one (or both) of the processes crashing and remote control of the Magstim being lost. These two processes have now been merged to avoid this issue.
+22-03-30: Under Windows 10, the two additional processes that MagPy uses control the serial port and to regularly contact the Magstim unit seem to take longer than previously to spin up. Because of the dependency between them, this sometimes resulted in one (or both) of the processes crashing and remote control of the Magstim being lost. These two processes have now been merged to avoid this issue. In addition, _virtual.py has been removed from the respository as it was not working properly. I will re-upload it once I find time to fix it.
 
 20-10-22: rTMSMode() will now check whether the stimulator is currently in rTMS mode before attempting to enable or disable. This will avoid overwriting the current settings on the unit if rTMS mode is already enabled
 
